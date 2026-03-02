@@ -1,10 +1,11 @@
 import fs from 'fs/promises';
 import * as templateService from '../services/template.service.js';
+import { parseParts } from '../services/template.service.js';
 
 function detectMediaType(mimetype) {
   if (!mimetype) return null;
   if (mimetype.startsWith('image/')) return 'image';
-  if (mimetype.startsWith('audio/')) return 'audio';
+  if (mimetype.startsWith('audio/') || mimetype === 'video/mp4') return 'audio';
   return null;
 }
 
@@ -15,36 +16,14 @@ async function deleteMediaFile(mediaPath) {
   } catch (_) {}
 }
 
-function toArray(val) {
-  if (Array.isArray(val)) return val;
-  if (typeof val === 'string') {
-    try {
-      return JSON.parse(val || '[]');
-    } catch (_) {
-      return [];
-    }
-  }
-  return [];
-}
-
 function templateToApi(t) {
   if (!t) return t;
   return {
     ...t,
-    variables: toArray(t.variables),
-    saludos: toArray(t.saludos),
-    cuerpos: toArray(t.cuerpos),
-    ctas: toArray(t.ctas),
-  };
-}
-
-function normalizeBody(req) {
-  const { name, saludos, cuerpos, ctas } = req.body;
-  return {
-    name: name != null ? String(name).trim() : '',
-    saludos: toArray(saludos),
-    cuerpos: toArray(cuerpos),
-    ctas: toArray(ctas),
+    variables: parseParts(t.variables),
+    saludos: parseParts(t.saludos),
+    cuerpos: parseParts(t.cuerpos),
+    ctas: parseParts(t.ctas),
   };
 }
 
@@ -71,11 +50,15 @@ export async function getOne(req, res) {
 
 export async function create(req, res) {
   try {
-    const { name, saludos, cuerpos, ctas } = normalizeBody(req);
+    const name = req.body.name != null ? String(req.body.name).trim() : '';
     if (!name) {
       if (req.file) await deleteMediaFile(req.file.path);
       return res.status(400).json({ error: 'El nombre es obligatorio' });
     }
+
+    const saludos = parseParts(req.body.saludos);
+    const cuerpos = parseParts(req.body.cuerpos);
+    const ctas    = parseParts(req.body.ctas);
 
     const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
     if (!hasCuerpo) {
@@ -119,15 +102,18 @@ export async function update(req, res) {
       return res.status(404).json({ error: 'Plantilla no encontrada' });
     }
 
-    const { name, saludos, cuerpos, ctas } = normalizeBody(req);
-    const updateData = {
-      name: name || existing.name,
-      saludos,
-      cuerpos,
-      ctas,
-    };
+    // Solo incluir campos en updateData si el cliente los envió explícitamente
+    const updateData = {};
+    if (req.body.name != null) {
+      updateData.name = String(req.body.name).trim() || existing.name;
+    }
+    if (req.body.saludos !== undefined) updateData.saludos = parseParts(req.body.saludos);
+    if (req.body.cuerpos !== undefined) updateData.cuerpos = parseParts(req.body.cuerpos);
+    if (req.body.ctas    !== undefined) updateData.ctas    = parseParts(req.body.ctas);
 
-    const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
+    // Validar cuerpos (ya sea el nuevo o el existente)
+    const cuerposToValidate = updateData.cuerpos ?? parseParts(existing.cuerpos);
+    const hasCuerpo = cuerposToValidate.some((c) => String(c).trim() !== '');
     if (!hasCuerpo) {
       if (req.file) await deleteMediaFile(req.file.path);
       return res.status(400).json({ error: 'Añade al menos una variante en Cuerpo del mensaje' });

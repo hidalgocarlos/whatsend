@@ -3,7 +3,7 @@ import { resolveSpintax } from '../lib/spintax.js';
 
 const VARIABLE_REGEX = /\{\{(\w+)\}\}/g;
 
-function parseParts(val) {
+export function parseParts(val) {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
     try {
