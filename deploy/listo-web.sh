@@ -65,18 +65,24 @@ fi
 echo ""
 
 # ── 2. Backend: dependencias, migraciones, seed ───────────
-echo "[2/6] Backend: npm ci, migraciones, seed..."
+echo "[2/6] Backend: dependencias, migraciones, seed..."
 cd "$BACKEND_DIR"
-npm ci
+if ! npm ci --no-audit --no-fund 2>/dev/null; then
+  echo "      npm ci falló (lock desincronizado), usando npm install..."
+  npm install --no-audit --no-fund
+fi
 npx prisma generate
 npx prisma migrate deploy
 npx prisma db seed 2>/dev/null || echo "      Seed omitido (ya hay datos o error)."
 echo ""
 
 # ── 3. Frontend: build ────────────────────────────────────
-echo "[3/6] Frontend: npm ci, build..."
+echo "[3/6] Frontend: dependencias, build..."
 cd "$FRONTEND_DIR"
-npm ci
+if ! npm ci --no-audit --no-fund 2>/dev/null; then
+  echo "      npm ci falló (lock desincronizado), usando npm install..."
+  npm install --no-audit --no-fund
+fi
 npm run build
 echo ""
 
