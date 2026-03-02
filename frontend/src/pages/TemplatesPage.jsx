@@ -7,160 +7,89 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 function mediaUrl(filename) {
   if (!filename) return null;
-  const name = filename.split(/[\\/]/).pop();
+  const name = String(filename).split(/[\\/]/).pop();
   return `${API_BASE}/api/templates/media/${encodeURIComponent(name)}`;
 }
 
 function MediaIcon({ type }) {
-  if (type === 'image') return <span className="ml-1 text-blue-500 text-xs">🖼 img</span>;
-  if (type === 'audio') return <span className="ml-1 text-purple-500 text-xs">🎵 audio</span>;
+  if (type === 'image') return <span className="ml-1.5 text-blue-500 text-xs font-medium">🖼</span>;
+  if (type === 'audio') return <span className="ml-1.5 text-violet-500 text-xs font-medium">🎵</span>;
   return null;
 }
 
 function MediaPreview({ mediaType, mediaPath, localFile }) {
   const src = localFile ? URL.createObjectURL(localFile) : mediaUrl(mediaPath);
   if (!src) return null;
-
   if (mediaType === 'image') {
     return (
       <img
         src={src}
-        alt="Preview"
-        className="mt-2 max-h-40 rounded-xl border border-slate-100 object-contain shadow-card"
+        alt="Adjunto"
+        className="mt-2 max-h-36 rounded-xl border border-slate-200 object-contain shadow-sm"
         onError={(e) => { e.target.style.display = 'none'; }}
       />
     );
   }
   if (mediaType === 'audio') {
     return (
-      <audio
-        key={src}
-        controls
-        src={src}
-        className="mt-2 w-full"
-      />
+      <audio key={src} controls src={src} className="mt-2 w-full h-10 rounded-lg" />
     );
   }
   return null;
 }
 
-// ---------- Asistente de palabras alternativas ----------
-function VariationHelper({ onInsert }) {
-  const [open, setOpen]       = useState(false);
-  const [options, setOptions] = useState('');
-
-  function apply() {
-    const parts = options.split('/').map(s => s.trim()).filter(Boolean);
-    if (parts.length < 2) return;
-    onInsert(`{${parts.join('|')}}`);
-    setOptions('');
-    setOpen(false);
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-medium"
-      >
-        <span className="text-base">✨</span> Agregar palabras alternativas
-      </button>
-    );
-  }
-
-  return (
-    <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
-      <p className="text-sm font-semibold text-amber-800">Palabras alternativas</p>
-      <p className="text-xs text-amber-700 leading-relaxed">
-        Escribe varias opciones separadas por <strong>/</strong> y el sistema elegirá una diferente para cada persona que reciba el mensaje.
-      </p>
-      <div className="flex gap-2">
-        <input
-          autoFocus
-          value={options}
-          onChange={e => setOptions(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } }}
-          placeholder="Ej: Hola / Buenos días / Buenas tardes"
-          className="flex-1 px-3 py-2 text-sm border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 bg-white"
-        />
-        <button
-          type="button"
-          onClick={apply}
-          disabled={options.split('/').filter(s => s.trim()).length < 2}
-          className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-xl hover:bg-amber-600 disabled:opacity-40 transition-colors"
-        >
-          Insertar
-        </button>
-        <button type="button" onClick={() => { setOpen(false); setOptions(''); }} className="px-3 py-2 text-slate-500 hover:text-slate-700 text-sm">
-          Cancelar
-        </button>
-      </div>
-      {options.split('/').filter(s => s.trim()).length >= 2 && (
-        <p className="text-xs text-amber-600">
-          Vista previa: <strong>{options.split('/').map(s => s.trim()).filter(Boolean).join(' · ')}</strong>
-        </p>
-      )}
-    </div>
-  );
-}
-
-const emptyForm = () => ({
+const INITIAL_FORM = {
   name: '',
   saludos: [''],
   cuerpos: [''],
   ctas: [''],
-});
+};
+
+function ensureNonEmpty(arr) {
+  return Array.isArray(arr) && arr.length > 0 ? arr.map(String) : [''];
+}
 
 export default function TemplatesPage() {
   const [list, setList] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState(() => ({ ...INITIAL_FORM }));
   const [mediaFile, setMediaFile] = useState(null);
   const [clearMedia, setClearMedia] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [previewSample, setPreviewSample] = useState(null);
-  const [previewTemplate, setPreviewTemplate] = useState(null);
-  const [previewModalSample, setPreviewModalSample] = useState('');
+  const [previewRandom, setPreviewRandom] = useState(null);
+  const [previewModalTemplate, setPreviewModalTemplate] = useState(null);
+  const [previewModalText, setPreviewModalText] = useState('');
   const fileInputRef = useRef(null);
-  const focusedInputRef = useRef(null);
+  const focusedRef = useRef(null);
 
   useEffect(() => {
     api.get('/api/templates').then((r) => setList(r.data)).catch(console.error);
   }, []);
 
-  function startEdit(t) {
+  function loadTemplate(t) {
     setEditing(t);
-    const saludos = Array.isArray(t.saludos) && t.saludos.length > 0 ? t.saludos : [];
-    const cuerpos = Array.isArray(t.cuerpos) && t.cuerpos.length > 0 ? t.cuerpos : [];
-    const ctas = Array.isArray(t.ctas) && t.ctas.length > 0 ? t.ctas : [];
-    if (saludos.length || cuerpos.length || ctas.length) {
-      setForm({
-        name: t.name,
-        saludos: saludos.length ? saludos : [''],
-        cuerpos: cuerpos.length ? cuerpos : [''],
-        ctas: ctas.length ? ctas : [''],
-      });
-    } else {
-      setForm({
-        name: t.name,
-        saludos: [''],
-        cuerpos: [t.body || ''],
-        ctas: [''],
-      });
-    }
-    setPreviewSample(null);
+    const saludos = ensureNonEmpty(t.saludos);
+    const cuerpos = ensureNonEmpty(t.cuerpos);
+    const ctas = ensureNonEmpty(t.ctas);
+    const hasNewFormat = saludos.some(Boolean) || cuerpos.some(Boolean) || ctas.some(Boolean);
+    setForm({
+      name: t.name || '',
+      saludos: hasNewFormat ? saludos : [''],
+      cuerpos: hasNewFormat ? cuerpos : [t.body || ''],
+      ctas: hasNewFormat ? ctas : [''],
+    });
+    setPreviewRandom(null);
     setMediaFile(null);
     setClearMedia(false);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  function cancelEdit() {
+  function resetForm() {
     setEditing(null);
-    setForm(emptyForm());
-    setPreviewSample(null);
+    setForm({ ...INITIAL_FORM });
+    setPreviewRandom(null);
     setMediaFile(null);
     setClearMedia(false);
     setError(null);
@@ -179,87 +108,89 @@ export default function TemplatesPage() {
   }
 
   function removePart(section, index) {
-    setForm((f) => ({
-      ...f,
-      [section]: f[section].filter((_, i) => i !== index).length ? f[section].filter((_, i) => i !== index) : [''],
-    }));
-  }
-
-  function registerFocus(section, index, setValue, el) {
-    focusedInputRef.current = { section, index, setValue, el };
-  }
-
-  function insertSpintax(snippet) {
-    const cur = focusedInputRef.current;
-    if (!cur?.el) return;
-    const start = cur.el.selectionStart;
-    const end = cur.el.selectionEnd;
-    const val = cur.el.value ?? '';
-    const newVal = val.slice(0, start) + snippet + val.slice(end);
-    cur.setValue(newVal);
-    requestAnimationFrame(() => {
-      cur.el.focus();
-      cur.el.selectionStart = cur.el.selectionEnd = start + snippet.length;
+    setForm((f) => {
+      const next = f[section].filter((_, i) => i !== index);
+      return { ...f, [section]: next.length ? next : [''] };
     });
   }
 
-  function handleFileChange(e) {
-    const file = e.target.files[0] || null;
-    setMediaFile(file);
-    setClearMedia(false);
+  function registerFocus(setter, el) {
+    focusedRef.current = { setter, el };
   }
 
-  function handleClearMedia() {
-    setMediaFile(null);
-    setClearMedia(true);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  function insertSpintax(snippet) {
+    const cur = focusedRef.current;
+    if (!cur?.el) return;
+    const start = cur.el.selectionStart ?? 0;
+    const end = cur.el.selectionEnd ?? start;
+    const val = cur.el.value ?? '';
+    const newVal = val.slice(0, start) + snippet + val.slice(end);
+    cur.setter(newVal);
+    requestAnimationFrame(() => {
+      cur.el.focus();
+      const pos = start + snippet.length;
+      cur.el.setSelectionRange(pos, pos);
+    });
   }
 
-  // Detecta si el archivo local (o el del template) es imagen o audio
-  function resolvedMediaType() {
-    if (mediaFile) {
-      if (mediaFile.type.startsWith('image/')) return 'image';
-      if (mediaFile.type.startsWith('audio/') || mediaFile.type === 'video/mp4') return 'audio';
-    }
-    if (!clearMedia && editing?.mediaType) return editing.mediaType;
-    return null;
-  }
-
-  function resolvedMediaPath() {
-    if (mediaFile) return null; // se usa localFile
-    if (!clearMedia && editing?.mediaPath) return editing.mediaPath;
-    return null;
-  }
-
-  const hasContent = () => {
-    const hasSaludo = form.saludos.some((s) => String(s).trim() !== '');
+  const hasValidForm = () => {
+    const nameOk = String(form.name).trim() !== '';
     const hasCuerpo = form.cuerpos.some((c) => String(c).trim() !== '');
-    return hasSaludo && hasCuerpo;
+    return nameOk && hasCuerpo;
+  };
+
+  const getPreviewText = () => {
+    if (previewRandom != null) return previewRandom;
+    const s = form.saludos[0] ?? '';
+    const c = form.cuerpos[0] ?? '';
+    const a = form.ctas[0] ?? '';
+    return resolveMessage([s, c, a].filter(Boolean).join('\n\n'), {});
   };
 
   async function submit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !hasContent()) return;
+    if (!hasValidForm()) return;
     setLoading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append('name', form.name.trim());
-      fd.append('saludos', JSON.stringify(form.saludos));
-      fd.append('cuerpos', JSON.stringify(form.cuerpos));
-      fd.append('ctas', JSON.stringify(form.ctas));
-      fd.append('body', '');
-      if (mediaFile) fd.append('media', mediaFile);
-      else if (clearMedia) fd.append('clearMedia', 'true');
+      const name = form.name.trim();
+      const saludos = form.saludos.map(String).filter((s) => s.trim() !== '').length ? form.saludos.map(String) : [''];
+      const cuerpos = form.cuerpos.map(String).filter((c) => c.trim() !== '');
+      const ctas = form.ctas.map(String).filter((a) => a.trim() !== '').length ? form.ctas.map(String) : [''];
 
-      if (editing) {
-        const { data } = await api.put(`/api/templates/${editing.id}`, fd);
-        setList((prev) => prev.map((t) => (t.id === editing.id ? data : t)));
-      } else {
-        const { data } = await api.post('/api/templates', fd);
-        setList((prev) => [data, ...prev]);
+      if (!cuerpos.length || !cuerpos.some((c) => c.trim() !== '')) {
+        setError('El cuerpo del mensaje debe tener al menos una variante con texto.');
+        setLoading(false);
+        return;
       }
-      cancelEdit();
+
+      if (mediaFile || (editing && (clearMedia || editing.mediaPath))) {
+        const fd = new FormData();
+        fd.append('name', name);
+        fd.append('saludos', JSON.stringify(saludos));
+        fd.append('cuerpos', JSON.stringify(cuerpos));
+        fd.append('ctas', JSON.stringify(ctas));
+        if (mediaFile) fd.append('media', mediaFile);
+        if (clearMedia && editing) fd.append('clearMedia', 'true');
+
+        if (editing) {
+          const { data } = await api.put(`/api/templates/${editing.id}`, fd);
+          setList((prev) => prev.map((t) => (t.id === editing.id ? data : t)));
+        } else {
+          const { data } = await api.post('/api/templates', fd);
+          setList((prev) => [data, ...prev]);
+        }
+      } else {
+        const payload = { name, saludos, cuerpos, ctas };
+        if (editing) {
+          const { data } = await api.put(`/api/templates/${editing.id}`, payload);
+          setList((prev) => prev.map((t) => (t.id === editing.id ? data : t)));
+        } else {
+          const { data } = await api.post('/api/templates', payload);
+          setList((prev) => [data, ...prev]);
+        }
+      }
+      resetForm();
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Error al guardar');
     } finally {
@@ -272,256 +203,340 @@ export default function TemplatesPage() {
     try {
       await api.delete(`/api/templates/${id}`);
       setList((prev) => prev.filter((t) => t.id !== id));
-      if (editing?.id === id) cancelEdit();
+      if (editing?.id === id) resetForm();
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Error al eliminar');
     }
   }
 
-  const currentMediaType = resolvedMediaType();
-  const currentMediaPath = resolvedMediaPath();
-  const hasCurrentMedia = currentMediaType !== null;
+  function openPreviewModal(t) {
+    setPreviewModalTemplate(t);
+    setPreviewModalText(buildMessageFromTemplate(t, {}));
+  }
+
+  const currentMediaType = mediaFile
+    ? (mediaFile.type.startsWith('image/') ? 'image' : mediaFile.type.startsWith('audio/') || mediaFile.type === 'video/mp4' ? 'audio' : null)
+    : clearMedia ? null : editing?.mediaType ?? null;
+  const currentMediaPath = !mediaFile && !clearMedia && editing?.mediaPath ? editing.mediaPath : null;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Plantillas</h1>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <div className="max-w-3xl mx-auto px-4 py-8 sm:px-6">
+        <header className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Plantillas de mensaje</h1>
+          <p className="mt-1 text-slate-600 text-sm">
+            Crea mensajes en 3 partes: <strong>Saludo</strong> → <strong>Cuerpo</strong> → <strong>CTA</strong>. Varias opciones por parte se eligen al azar en cada envío.
+          </p>
+        </header>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8 transition-shadow duration-200 hover:shadow-card-hover">
-        <h2 className="font-semibold text-slate-900 tracking-tight mb-5">{editing ? 'Editar' : 'Nueva'} plantilla</h2>
-        <form onSubmit={submit} className="space-y-5">
-          <div>
-            <label htmlFor="template-name" className="block text-sm font-semibold text-slate-700 mb-2">Nombre</label>
-            <input
-              id="template-name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 transition-shadow"
-              placeholder="Ej: Bienvenida"
-              required
-            />
+        {/* Formulario */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h2 className="font-semibold text-slate-800">{editing ? 'Editar plantilla' : 'Nueva plantilla'}</h2>
           </div>
-
-          {/* Ayuda */}
-          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2.5 text-sm">
-            <p className="font-semibold text-blue-800">💡 Mensaje en 3 partes: Saludo → Cuerpo → CTA. Puedes añadir varias opciones en cada parte; el sistema elegirá una al azar por envío.</p>
-            <p className="text-blue-600 text-xs">
-              Usa <code className="bg-white border border-blue-200 px-1 py-0.5 rounded font-mono text-blue-700">{'{{nombre}}'}</code> para el nombre. Botón <strong>«Agregar palabras alternativas»</strong> para variaciones en cada parte.
-            </p>
-          </div>
-
-          <VariationHelper onInsert={insertSpintax} />
-
-          {/* Saludos */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-700">Saludo</label>
-            {form.saludos.map((val, i) => (
-              <div key={`s-${i}`} className="flex gap-2 items-start">
-                <input
-                  value={val}
-                  onChange={(e) => updatePart('saludos', i, e.target.value)}
-                  onFocus={(e) => registerFocus('saludos', i, (v) => updatePart('saludos', i, v), e.target)}
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm"
-                  placeholder="Ej: Hola {{nombre}}"
-                />
-                <button type="button" onClick={() => removePart('saludos', i)} disabled={form.saludos.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40" title="Quitar">×</button>
-              </div>
-            ))}
-            <button type="button" onClick={() => addPart('saludos')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro saludo</button>
-          </div>
-
-          {/* Cuerpos */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-700">Cuerpo</label>
-            {form.cuerpos.map((val, i) => (
-              <div key={`c-${i}`} className="flex gap-2 items-start">
-                <textarea
-                  value={val}
-                  onChange={(e) => updatePart('cuerpos', i, e.target.value)}
-                  onFocus={(e) => registerFocus('cuerpos', i, (v) => updatePart('cuerpos', i, v), e.target)}
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm min-h-[80px]"
-                  placeholder="Texto principal del mensaje..."
-                />
-                <button type="button" onClick={() => removePart('cuerpos', i)} disabled={form.cuerpos.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40 mt-1" title="Quitar">×</button>
-              </div>
-            ))}
-            <button type="button" onClick={() => addPart('cuerpos')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro cuerpo</button>
-          </div>
-
-          {/* CTAs */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-700">CTA (llamado a la acción) <span className="font-normal text-slate-400">opcional</span></label>
-            {form.ctas.map((val, i) => (
-              <div key={`a-${i}`} className="flex gap-2 items-start">
-                <input
-                  value={val}
-                  onChange={(e) => updatePart('ctas', i, e.target.value)}
-                  onFocus={(e) => registerFocus('ctas', i, (v) => updatePart('ctas', i, v), e.target)}
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm"
-                  placeholder="Ej: Escríbenos al 3001234567"
-                />
-                <button type="button" onClick={() => removePart('ctas', i)} disabled={form.ctas.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40" title="Quitar">×</button>
-              </div>
-            ))}
-            <button type="button" onClick={() => addPart('ctas')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro CTA</button>
-          </div>
-
-          {/* Preview en vivo */}
-          {hasContent() && (
-            <div className="p-4 bg-[#E7FEDD] border border-[#C5F0A4] rounded-2xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">📱 Vista previa</p>
-                <button type="button" onClick={() => setPreviewSample(buildMessageFromTemplate(form, {}))} className="text-xs text-emerald-700 underline hover:no-underline font-medium">Ver otra combinación →</button>
-              </div>
-              <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                {previewSample != null ? previewSample : resolveMessage([form.saludos[0], form.cuerpos[0], form.ctas[0]].filter(Boolean).join('\n\n'), {})}
-              </p>
-              {(form.saludos.length > 1 || form.cuerpos.length > 1 || form.ctas.length > 1) && (
-                <p className="mt-2 text-xs text-emerald-600">✅ Variantes por bloque: el sistema elegirá una opción al azar en cada envío.</p>
-              )}
+          <form onSubmit={submit} className="p-5 sm:p-6 space-y-6">
+            <div>
+              <label htmlFor="tpl-name" className="block text-sm font-medium text-slate-700 mb-1.5">Nombre</label>
+              <input
+                id="tpl-name"
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Ej: Bienvenida clientes"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-shadow text-slate-900"
+              />
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Imagen o audio adjunto{' '}
-              <span className="text-slate-400 font-normal">(opcional — JPG, PNG, WEBP, MP3, OGG · máx 20 MB)</span>
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPT}
-              onChange={handleFileChange}
-              className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#25D366]/10 file:text-[#25D366] hover:file:bg-[#25D366]/20"
-            />
+            {/* Bloque Saludo */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700 text-sm font-bold">1</span>
+                <label className="text-sm font-medium text-slate-700">Saludo</label>
+                <span className="text-xs text-slate-400">(opcional)</span>
+              </div>
+              {form.saludos.map((val, i) => (
+                <div key={`s-${i}`} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => updatePart('saludos', i, e.target.value)}
+                    onFocus={(e) => registerFocus((v) => updatePart('saludos', i, v), e.target)}
+                    placeholder="Ej: Hola {{nombre}}"
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePart('saludos', i)}
+                    disabled={form.saludos.length <= 1}
+                    className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Quitar variante"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addPart('saludos')} className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
+                + Añadir otra variante de saludo
+              </button>
+            </div>
 
-            {/* Preview del archivo actual o nuevo */}
-            {hasCurrentMedia && (
-              <div className="mt-2">
-                <MediaPreview
-                  mediaType={currentMediaType}
-                  mediaPath={currentMediaPath}
-                  localFile={mediaFile}
+            {/* Bloque Cuerpo */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 text-sm font-bold">2</span>
+                <label className="text-sm font-medium text-slate-700">Cuerpo del mensaje</label>
+                <span className="text-xs text-amber-600 font-medium">obligatorio</span>
+              </div>
+              {form.cuerpos.map((val, i) => (
+                <div key={`c-${i}`} className="flex gap-2 items-start">
+                  <textarea
+                    value={val}
+                    onChange={(e) => updatePart('cuerpos', i, e.target.value)}
+                    onFocus={(e) => registerFocus((v) => updatePart('cuerpos', i, v), e.target)}
+                    placeholder="Texto principal del mensaje..."
+                    rows={3}
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm resize-y min-h-[72px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePart('cuerpos', i)}
+                    disabled={form.cuerpos.length <= 1}
+                    className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40 rounded-lg hover:bg-red-50 transition-colors mt-1"
+                    title="Quitar variante"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addPart('cuerpos')} className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
+                + Añadir otra variante de cuerpo
+              </button>
+            </div>
+
+            {/* Bloque CTA */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold">3</span>
+                <label className="text-sm font-medium text-slate-700">CTA (llamado a la acción)</label>
+                <span className="text-xs text-slate-400">(opcional)</span>
+              </div>
+              {form.ctas.map((val, i) => (
+                <div key={`a-${i}`} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => updatePart('ctas', i, e.target.value)}
+                    onFocus={(e) => registerFocus((v) => updatePart('ctas', i, v), e.target)}
+                    placeholder="Ej: Escríbenos al 300 123 4567"
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePart('ctas', i)}
+                    disabled={form.ctas.length <= 1}
+                    className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Quitar variante"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addPart('ctas')} className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
+                + Añadir otra variante de CTA
+              </button>
+            </div>
+
+            {/* Palabras alternativas */}
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-100">
+              <p className="text-sm font-medium text-amber-800 mb-2">Palabras alternativas (spintax)</p>
+              <p className="text-xs text-amber-700 mb-2">
+                Escribe opciones separadas por <strong>/</strong>, haz clic en Insertar y se añadirá en el campo que tengas seleccionado. Ej: <code className="bg-amber-100 px-1 rounded">Hola / Buenas / Qué tal</code>
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="spintax-input"
+                  placeholder="Opción 1 / Opción 2 / Opción 3"
+                  className="flex-1 px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const v = e.target.value.trim();
+                      const parts = v.split('/').map((s) => s.trim()).filter(Boolean);
+                      if (parts.length >= 2) insertSpintax(`{${parts.join('|')}}`);
+                      e.target.value = '';
+                    }
+                  }}
                 />
                 <button
                   type="button"
-                  onClick={handleClearMedia}
-                  className="mt-2 text-xs text-red-500 hover:text-red-700"
+                  onClick={() => {
+                    const el = document.getElementById('spintax-input');
+                    if (!el) return;
+                    const parts = el.value.split('/').map((s) => s.trim()).filter(Boolean);
+                    if (parts.length >= 2) {
+                      insertSpintax(`{${parts.join('|')}}`);
+                      el.value = '';
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
                 >
-                  Quitar archivo
+                  Insertar
                 </button>
               </div>
-            )}
-          </div>
-
-          {error && (
-            <div className="p-4 bg-red-50/90 border border-red-100 rounded-2xl text-sm text-red-700 font-medium" role="alert">
-              {error}
             </div>
-          )}
 
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl disabled:opacity-50 shadow-card transition-all duration-200"
-            >
-              {loading ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear plantilla'}
-            </button>
-            {editing && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="px-5 py-2.5 border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
-        <table className="w-full">
-          <thead className="bg-slate-50/80 border-b border-slate-100">
-            <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <th className="p-4">Nombre</th>
-              <th className="p-4">Cuerpo (preview)</th>
-              <th className="p-4 w-44">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.length === 0 && (
-              <tr>
-                <td colSpan={3} className="p-8 text-center text-slate-400">No hay plantillas aún</td>
-              </tr>
-            )}
-            {list.map((t) => (
-              <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
-                <td className="p-4 font-medium text-slate-800">
-                  {t.name}
-                  <MediaIcon type={t.mediaType} />
-                </td>
-                <td className="p-4 text-slate-600 text-sm truncate max-w-sm">
-                  {(() => {
-                    const saludos = Array.isArray(t.saludos) ? t.saludos : [];
-                    const cuerpos = Array.isArray(t.cuerpos) ? t.cuerpos : [];
-                    const ctas = Array.isArray(t.ctas) ? t.ctas : [];
-                    const hasParts = saludos.length > 0 || cuerpos.length > 0 || ctas.length > 0;
-                    if (hasParts) {
-                      const first = [saludos[0], cuerpos[0], ctas[0]].filter(Boolean).join(' · ');
-                      const n = saludos.length + cuerpos.length + ctas.length;
-                      return n > 3 ? `${(first || '').slice(0, 60)}… (${n} variantes)` : (first || '').slice(0, 80);
-                    }
-                    return (t.body || '').slice(0, 80);
-                  })()}
-                </td>
-                <td className="p-4 whitespace-nowrap">
+            {/* Vista previa */}
+            {form.cuerpos.some((c) => String(c).trim() !== '') && (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-emerald-800">Vista previa</span>
                   <button
                     type="button"
-                    onClick={() => { setPreviewTemplate(t); setPreviewModalSample(buildMessageFromTemplate(t, {})); }}
-                    className="font-medium text-slate-600 hover:text-slate-800 mr-3 text-sm transition-colors"
+                    onClick={() => setPreviewRandom(buildMessageFromTemplate(form, {}))}
+                    className="text-xs font-medium text-emerald-600 hover:underline"
                   >
-                    Previsualizar
+                    Otra combinación
                   </button>
-                  <button type="button" onClick={() => startEdit(t)} className="font-medium text-[#25D366] hover:text-emerald-600 mr-3 text-sm transition-colors">
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => remove(t.id)} className="font-medium text-red-600 hover:text-red-700 text-sm transition-colors">
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white/80 rounded-lg p-3 border border-emerald-100">
+                  {getPreviewText()}
+                </p>
+                {(form.saludos.length > 1 || form.cuerpos.length > 1 || form.ctas.length > 1) && (
+                  <p className="mt-2 text-xs text-emerald-600">El sistema elegirá una variante al azar de cada bloque en cada envío.</p>
+                )}
+              </div>
+            )}
+
+            {/* Adjunto */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Imagen o audio (opcional)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT}
+                onChange={(e) => { setMediaFile(e.target.files?.[0] ?? null); setClearMedia(false); }}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 file:font-medium file:text-sm hover:file:bg-emerald-100"
+              />
+              {(currentMediaType || mediaFile) && (
+                <div className="mt-2">
+                  <MediaPreview mediaType={currentMediaType} mediaPath={currentMediaPath} localFile={mediaFile} />
+                  {editing && (
+                    <button type="button" onClick={() => setClearMedia(true)} className="mt-2 text-xs text-red-600 hover:underline">
+                      Quitar adjunto
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700 font-medium" role="alert">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={loading || !hasValidForm()}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-colors"
+              >
+                {loading ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear plantilla'}
+              </button>
+              {editing && (
+                <button type="button" onClick={resetForm} className="px-5 py-2.5 border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* Listado */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h2 className="font-semibold text-slate-800">Tus plantillas</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                  <th className="p-4">Nombre</th>
+                  <th className="p-4 max-w-xs">Vista previa</th>
+                  <th className="p-4 w-40">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="p-8 text-center text-slate-500 text-sm">Aún no tienes plantillas. Crea una arriba.</td>
+                  </tr>
+                )}
+                {list.map((t) => {
+                  const saludos = Array.isArray(t.saludos) ? t.saludos : [];
+                  const cuerpos = Array.isArray(t.cuerpos) ? t.cuerpos : [];
+                  const ctas = Array.isArray(t.ctas) ? t.ctas : [];
+                  const firstLine = [saludos[0], cuerpos[0], ctas[0]].filter(Boolean).join(' · ');
+                  const variantCount = saludos.length + cuerpos.length + ctas.length;
+                  return (
+                    <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 font-medium text-slate-800">
+                        {t.name}
+                        <MediaIcon type={t.mediaType} />
+                      </td>
+                      <td className="p-4 text-slate-600 text-sm max-w-xs truncate" title={firstLine}>
+                        {firstLine ? `${firstLine.slice(0, 70)}${firstLine.length > 70 ? '…' : ''}` : '—'}
+                        {variantCount > 3 && <span className="text-slate-400 ml-1">({variantCount} variantes)</span>}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => openPreviewModal(t)} className="text-sm font-medium text-slate-600 hover:text-slate-800">
+                            Ver
+                          </button>
+                          <button type="button" onClick={() => loadTemplate(t)} className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
+                            Editar
+                          </button>
+                          <button type="button" onClick={() => remove(t.id)} className="text-sm font-medium text-red-600 hover:text-red-700">
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
-      {/* Modal previsualizar mensaje */}
-      {previewTemplate && (
+      {/* Modal previsualización */}
+      {previewModalTemplate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          onClick={() => setPreviewTemplate(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setPreviewModalTemplate(null)}
         >
           <div
-            className="max-w-md max-h-[80vh] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl p-4 text-sm text-slate-700 whitespace-pre-wrap"
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3">
-              <p className="font-semibold text-slate-800">{previewTemplate.name}</p>
-              <button
-                type="button"
-                onClick={() => setPreviewTemplate(null)}
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
-              >
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">{previewModalTemplate.name}</h3>
+              <button type="button" onClick={() => setPreviewModalTemplate(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
                 ×
               </button>
             </div>
-            <p className="text-slate-600 border-t border-slate-100 pt-2 whitespace-pre-wrap">
-              {previewModalSample || '—'}
-            </p>
-            <button type="button" onClick={() => setPreviewModalSample(buildMessageFromTemplate(previewTemplate, {}))} className="mt-2 text-xs text-emerald-600 hover:underline">
-              Ver otra combinación
-            </button>
+            <div className="p-5 overflow-y-auto flex-1">
+              <p className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed">{previewModalText || '—'}</p>
+              <button
+                type="button"
+                onClick={() => setPreviewModalText(buildMessageFromTemplate(previewModalTemplate, {}))}
+                className="mt-3 text-sm font-medium text-emerald-600 hover:underline"
+              >
+                Otra combinación
+              </button>
+            </div>
           </div>
         </div>
       )}

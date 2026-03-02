@@ -5,10 +5,6 @@ export function resolveTemplate(body, variables = {}) {
   return body.replace(VARIABLE_REGEX, (_, key) => variables[key] ?? `{{${key}}}`);
 }
 
-/**
- * Resuelve spintax: {opción1|opción2|opción3} → elige una al azar.
- * Soporta anidamiento: {Hola {amigo|colega}|Buenos días}.
- */
 export function resolveSpintax(text) {
   if (!text || !text.includes('{')) return text;
   let result = text;
@@ -23,7 +19,6 @@ export function resolveSpintax(text) {
   return result;
 }
 
-/** Aplica variables y spintax en orden correcto */
 export function resolveMessage(body, variables = {}) {
   return resolveSpintax(resolveTemplate(body, variables));
 }
@@ -31,7 +26,11 @@ export function resolveMessage(body, variables = {}) {
 function parseParts(val) {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
-    try { return JSON.parse(val || '[]'); } catch (_) { return []; }
+    try {
+      return JSON.parse(val || '[]');
+    } catch (_) {
+      return [];
+    }
   }
   return [];
 }
@@ -42,24 +41,18 @@ function pickRandom(arr) {
 }
 
 /**
- * Construye el mensaje desde plantilla con 3 bloques (Saludo, Cuerpo, CTA) o body legacy.
- * Si hay al menos un elemento en saludos/cuerpos/ctas, elige uno al azar de cada bloque,
- * concatena con doble salto de línea y aplica variables + spintax.
+ * Construye el mensaje desde plantilla con 3 bloques: Saludo, Cuerpo, CTA.
+ * Elige una variante al azar de cada bloque; si no hay partes, usa body (legacy).
  */
 export function buildMessageFromTemplate(template, variables = {}) {
-  const saludos = parseParts(template?.saludos);
-  const cuerpos = parseParts(template?.cuerpos);
-  const ctas = parseParts(template?.ctas);
+  if (!template) return '';
+  const saludos = parseParts(template.saludos);
+  const cuerpos = parseParts(template.cuerpos);
+  const ctas = parseParts(template.ctas);
   const hasParts = saludos.length > 0 || cuerpos.length > 0 || ctas.length > 0;
 
-  if (hasParts) {
-    const parts = [
-      pickRandom(saludos),
-      pickRandom(cuerpos),
-      pickRandom(ctas),
-    ].filter(Boolean);
-    const raw = parts.join('\n\n');
-    return resolveMessage(raw, variables);
-  }
-  return resolveMessage(template?.body ?? '', variables);
+  const raw = hasParts
+    ? [pickRandom(saludos), pickRandom(cuerpos), pickRandom(ctas)].filter(Boolean).join('\n\n')
+    : (template.body || '');
+  return resolveMessage(raw, variables);
 }

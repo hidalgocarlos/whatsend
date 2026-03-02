@@ -10,22 +10,41 @@ function detectMediaType(mimetype) {
 
 async function deleteMediaFile(mediaPath) {
   if (!mediaPath) return;
-  try { await fs.unlink(mediaPath); } catch (_) {}
+  try {
+    await fs.unlink(mediaPath);
+  } catch (_) {}
 }
 
-function parseJsonArray(val) {
+function toArray(val) {
   if (Array.isArray(val)) return val;
-  try { return JSON.parse(val || '[]'); } catch (_) { return []; }
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val || '[]');
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
 }
 
 function templateToApi(t) {
   if (!t) return t;
   return {
     ...t,
-    variables: parseJsonArray(t.variables),
-    saludos: parseJsonArray(t.saludos),
-    cuerpos: parseJsonArray(t.cuerpos),
-    ctas: parseJsonArray(t.ctas),
+    variables: toArray(t.variables),
+    saludos: toArray(t.saludos),
+    cuerpos: toArray(t.cuerpos),
+    ctas: toArray(t.ctas),
+  };
+}
+
+function normalizeBody(req) {
+  const { name, saludos, cuerpos, ctas } = req.body;
+  return {
+    name: name != null ? String(name).trim() : '',
+    saludos: toArray(saludos),
+    cuerpos: toArray(cuerpos),
+    ctas: toArray(ctas),
   };
 }
 
@@ -52,22 +71,16 @@ export async function getOne(req, res) {
 
 export async function create(req, res) {
   try {
-    let { name, body, saludos, cuerpos, ctas } = req.body;
-    if (!name?.trim()) {
+    const { name, saludos, cuerpos, ctas } = normalizeBody(req);
+    if (!name) {
       if (req.file) await deleteMediaFile(req.file.path);
-      return res.status(400).json({ error: 'Nombre requerido' });
+      return res.status(400).json({ error: 'El nombre es obligatorio' });
     }
-    if (typeof saludos === 'string') { try { saludos = JSON.parse(saludos); } catch (_) { saludos = []; } }
-    if (typeof cuerpos === 'string') { try { cuerpos = JSON.parse(cuerpos); } catch (_) { cuerpos = []; } }
-    if (typeof ctas === 'string') { try { ctas = JSON.parse(ctas); } catch (_) { ctas = []; } }
-    const saludosArr = Array.isArray(saludos) ? saludos : (saludos != null ? [String(saludos)] : []);
-    const cuerposArr = Array.isArray(cuerpos) ? cuerpos : (cuerpos != null ? [String(cuerpos)] : []);
-    const ctasArr = Array.isArray(ctas) ? ctas : (ctas != null ? [String(ctas)] : []);
-    const hasBody = body != null && String(body).trim() !== '';
-    const hasCuerpos = cuerposArr.length > 0 && cuerposArr.some(s => String(s).trim() !== '');
-    if (!hasBody && !hasCuerpos) {
+
+    const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
+    if (!hasCuerpo) {
       if (req.file) await deleteMediaFile(req.file.path);
-      return res.status(400).json({ error: 'Indica al menos el cuerpo del mensaje o al menos una variante en Cuerpo' });
+      return res.status(400).json({ error: 'Añade al menos una variante en Cuerpo del mensaje' });
     }
 
     let mediaType = null;
@@ -81,10 +94,9 @@ export async function create(req, res) {
 
     const t = await templateService.create(req.user.id, {
       name,
-      body: body ?? '',
-      saludos: saludosArr,
-      cuerpos: cuerposArr,
-      ctas: ctasArr,
+      saludos,
+      cuerpos,
+      ctas,
       mediaType,
       mediaPath,
       mediaName,
@@ -94,7 +106,7 @@ export async function create(req, res) {
   } catch (err) {
     if (req.file) await deleteMediaFile(req.file.path).catch(() => {});
     console.error('[templates create]', err);
-    res.status(500).json({ error: 'Error al crear plantilla' });
+    res.status(400).json({ error: err.message || 'Error al crear plantilla' });
   }
 }
 
@@ -107,39 +119,39 @@ export async function update(req, res) {
       return res.status(404).json({ error: 'Plantilla no encontrada' });
     }
 
-    const updateData = {};
-    if (req.body.name != null) updateData.name = req.body.name;
-    if (req.body.body != null) updateData.body = req.body.body;
-    let saludos = req.body.saludos;
-    let cuerpos = req.body.cuerpos;
-    let ctas = req.body.ctas;
-    if (typeof saludos === 'string') { try { saludos = JSON.parse(saludos); } catch (_) { saludos = []; } }
-    if (typeof cuerpos === 'string') { try { cuerpos = JSON.parse(cuerpos); } catch (_) { cuerpos = []; } }
-    if (typeof ctas === 'string') { try { ctas = JSON.parse(ctas); } catch (_) { ctas = []; } }
-    if (req.body.saludos !== undefined) updateData.saludos = Array.isArray(saludos) ? saludos : [];
-    if (req.body.cuerpos !== undefined) updateData.cuerpos = Array.isArray(cuerpos) ? cuerpos : [];
-    if (req.body.ctas !== undefined) updateData.ctas = Array.isArray(ctas) ? ctas : [];
+    const { name, saludos, cuerpos, ctas } = normalizeBody(req);
+    const updateData = {
+      name: name || existing.name,
+      saludos,
+      cuerpos,
+      ctas,
+    };
+
+    const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
+    if (!hasCuerpo) {
+      if (req.file) await deleteMediaFile(req.file.path);
+      return res.status(400).json({ error: 'Añade al menos una variante en Cuerpo del mensaje' });
+    }
 
     if (req.file) {
       await deleteMediaFile(existing.mediaPath);
       updateData.mediaType = detectMediaType(req.file.mimetype);
       updateData.mediaPath = req.file.path;
       updateData.mediaName = req.file.originalname;
-    } else if (req.body.clearMedia === 'true') {
+    } else if (req.body.clearMedia === 'true' || req.body.clearMedia === true) {
       await deleteMediaFile(existing.mediaPath);
       updateData.mediaType = null;
       updateData.mediaPath = null;
       updateData.mediaName = null;
     }
 
-    await templateService.update(id, req.user.id, updateData);
+    const updated = await templateService.update(id, req.user.id, updateData);
     req.auditResourceId = Number(id);
-    const updated = await templateService.getById(id, req.user.id);
     res.json(templateToApi(updated));
   } catch (err) {
     if (req.file) await deleteMediaFile(req.file.path).catch(() => {});
     console.error('[templates update]', err);
-    res.status(500).json({ error: 'Error al actualizar plantilla' });
+    res.status(400).json({ error: err.message || 'Error al actualizar plantilla' });
   }
 }
 

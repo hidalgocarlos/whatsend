@@ -3,22 +3,35 @@ import { resolveSpintax } from '../lib/spintax.js';
 
 const VARIABLE_REGEX = /\{\{(\w+)\}\}/g;
 
-/** Extrae nombres de variables {{x}} de un string o de las partes saludos/cuerpos/ctas */
-export function extractVariables(bodyOrParts) {
-  const set = new Set();
-  let text = '';
-  if (typeof bodyOrParts === 'string') {
-    text = bodyOrParts;
-  } else if (bodyOrParts && typeof bodyOrParts === 'object') {
-    const arr = (s) => (Array.isArray(s) ? s : (typeof s === 'string' ? (() => { try { return JSON.parse(s || '[]'); } catch (_) { return []; } })() : []));
-    const saludos = arr(bodyOrParts.saludos);
-    const cuerpos = arr(bodyOrParts.cuerpos);
-    const ctas = arr(bodyOrParts.ctas);
-    text = [...saludos, ...cuerpos, ...ctas].filter(Boolean).join('\n');
-    if (bodyOrParts.body) text += '\n' + bodyOrParts.body;
+function parseParts(val) {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val || '[]');
+    } catch (_) {
+      return [];
+    }
   }
+  return [];
+}
+
+function pickRandom(arr) {
+  if (!arr || arr.length === 0) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** Extrae nombres de variables {{x}} de todos los textos de saludos, cuerpos y ctas */
+export function extractVariables(parts) {
+  const set = new Set();
+  const texts = [
+    ...parseParts(parts.saludos),
+    ...parseParts(parts.cuerpos),
+    ...parseParts(parts.ctas),
+  ].filter(Boolean);
+  const text = texts.join('\n');
   let m;
-  while ((m = VARIABLE_REGEX.exec(text)) !== null) {
+  const re = new RegExp(VARIABLE_REGEX.source, 'g');
+  while ((m = re.exec(text)) !== null) {
     set.add(m[1]);
   }
   return [...set];
@@ -29,41 +42,20 @@ export function resolveTemplate(body, variables = {}) {
   return body.replace(VARIABLE_REGEX, (_, key) => variables[key] ?? `{{${key}}}`);
 }
 
-function parseParts(val) {
-  if (Array.isArray(val)) return val;
-  if (typeof val === 'string') {
-    try { return JSON.parse(val || '[]'); } catch (_) { return []; }
-  }
-  return [];
-}
-
-function pickRandom(arr) {
-  if (!arr || arr.length === 0) return '';
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 /**
- * Construye el mensaje final: una opción al azar de cada bloque (saludo, cuerpo, cta),
- * concatenadas con doble salto de línea, luego resolveTemplate y resolveSpintax.
- * Si los tres bloques están vacíos, usa template.body (comportamiento legacy).
+ * Construye el mensaje: una opción al azar de Saludo, Cuerpo y CTA,
+ * unidas con doble salto de línea; aplica variables y spintax.
+ * Si no hay partes, usa template.body (legacy).
  */
 export function buildMessageFromParts(template, variables = {}) {
-  const saludos = parseParts(template.saludos);
-  const cuerpos = parseParts(template.cuerpos);
-  const ctas = parseParts(template.ctas);
+  const saludos = parseParts(template?.saludos);
+  const cuerpos = parseParts(template?.cuerpos);
+  const ctas = parseParts(template?.ctas);
   const hasParts = saludos.length > 0 || cuerpos.length > 0 || ctas.length > 0;
 
-  let raw;
-  if (hasParts) {
-    const parts = [
-      pickRandom(saludos),
-      pickRandom(cuerpos),
-      pickRandom(ctas),
-    ].filter(Boolean);
-    raw = parts.join('\n\n');
-  } else {
-    raw = template.body || '';
-  }
+  const raw = hasParts
+    ? [pickRandom(saludos), pickRandom(cuerpos), pickRandom(ctas)].filter(Boolean).join('\n\n')
+    : (template?.body || '');
   return resolveSpintax(resolveTemplate(raw, variables));
 }
 
@@ -80,65 +72,74 @@ export async function getById(id, userId) {
   });
 }
 
-export async function create(userId, { name, body = '', saludos = [], cuerpos = [], ctas = [], mediaType = null, mediaPath = null, mediaName = null }) {
-  const saludosArr = Array.isArray(saludos) ? saludos : [];
-  const cuerposArr = Array.isArray(cuerpos) ? cuerpos : [];
-  const ctasArr = Array.isArray(ctas) ? ctas : [];
-  const variables = JSON.stringify(extractVariables({ body, saludos: saludosArr, cuerpos: cuerposArr, ctas: ctasArr }));
-  const data = {
-    userId,
-    name: name.trim(),
-    body: body || '',
-    variables,
-    saludos: JSON.stringify(saludosArr),
-    cuerpos: JSON.stringify(cuerposArr),
-    ctas: JSON.stringify(ctasArr),
-    mediaType,
-    mediaPath,
-    mediaName,
-  };
-  return prisma.template.create({ data });
+export async function create(userId, data) {
+  const name = (data.name || '').trim();
+  const saludos = Array.isArray(data.saludos) ? data.saludos.map(String) : [];
+  const cuerpos = Array.isArray(data.cuerpos) ? data.cuerpos.map(String) : [];
+  const ctas = Array.isArray(data.ctas) ? data.ctas.map(String) : [];
+
+  const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
+  if (!hasCuerpo) {
+    throw new Error('El cuerpo del mensaje debe tener al menos una variante con texto.');
+  }
+
+  const variables = JSON.stringify(extractVariables({ saludos, cuerpos, ctas }));
+
+  return prisma.template.create({
+    data: {
+      userId,
+      name,
+      body: '',
+      variables,
+      saludos: JSON.stringify(saludos),
+      cuerpos: JSON.stringify(cuerpos),
+      ctas: JSON.stringify(ctas),
+      mediaType: data.mediaType ?? null,
+      mediaPath: data.mediaPath ?? null,
+      mediaName: data.mediaName ?? null,
+    },
+  });
 }
 
-/**
- * fields puede incluir: name, body, saludos, cuerpos, ctas, mediaType, mediaPath, mediaName
- * Para borrar media, el controller pasa mediaType/mediaPath/mediaName = null explícitamente.
- */
-export async function update(id, userId, fields) {
-  const data = {};
+export async function update(id, userId, data) {
+  const existing = await getById(id, userId);
+  if (!existing) return null;
 
-  if (fields.name != null) data.name = fields.name.trim();
-  if (fields.body != null) data.body = fields.body;
+  const saludos = data.saludos !== undefined
+    ? (Array.isArray(data.saludos) ? data.saludos.map(String) : [])
+    : parseParts(existing.saludos);
+  const cuerpos = data.cuerpos !== undefined
+    ? (Array.isArray(data.cuerpos) ? data.cuerpos.map(String) : [])
+    : parseParts(existing.cuerpos);
+  const ctas = data.ctas !== undefined
+    ? (Array.isArray(data.ctas) ? data.ctas.map(String) : [])
+    : parseParts(existing.ctas);
 
-  if (Object.prototype.hasOwnProperty.call(fields, 'saludos')) {
-    data.saludos = JSON.stringify(Array.isArray(fields.saludos) ? fields.saludos : []);
-  }
-  if (Object.prototype.hasOwnProperty.call(fields, 'cuerpos')) {
-    data.cuerpos = JSON.stringify(Array.isArray(fields.cuerpos) ? fields.cuerpos : []);
-  }
-  if (Object.prototype.hasOwnProperty.call(fields, 'ctas')) {
-    data.ctas = JSON.stringify(Array.isArray(fields.ctas) ? fields.ctas : []);
-  }
-
-  const needsVariableRecalc = 'body' in fields || 'saludos' in fields || 'cuerpos' in fields || 'ctas' in fields;
-  if (needsVariableRecalc) {
-    const existing = await getById(id, userId);
-    const body = fields.body !== undefined ? fields.body : (existing?.body ?? '');
-    const saludos = 'saludos' in fields ? (Array.isArray(fields.saludos) ? fields.saludos : []) : parseParts(existing?.saludos);
-    const cuerpos = 'cuerpos' in fields ? (Array.isArray(fields.cuerpos) ? fields.cuerpos : []) : parseParts(existing?.cuerpos);
-    const ctas = 'ctas' in fields ? (Array.isArray(fields.ctas) ? fields.ctas : []) : parseParts(existing?.ctas);
-    data.variables = JSON.stringify(extractVariables({ body, saludos, cuerpos, ctas }));
+  const hasCuerpo = cuerpos.some((c) => String(c).trim() !== '');
+  if (!hasCuerpo) {
+    throw new Error('El cuerpo del mensaje debe tener al menos una variante con texto.');
   }
 
-  // Solo tocar campos de media si el controller los incluyó en el objeto
-  if (Object.prototype.hasOwnProperty.call(fields, 'mediaType')) data.mediaType = fields.mediaType ?? null;
-  if (Object.prototype.hasOwnProperty.call(fields, 'mediaPath')) data.mediaPath = fields.mediaPath ?? null;
-  if (Object.prototype.hasOwnProperty.call(fields, 'mediaName')) data.mediaName = fields.mediaName ?? null;
+  const variables = JSON.stringify(extractVariables({ saludos, cuerpos, ctas }));
 
-  return prisma.template.updateMany({
+  const updatePayload = {
+    name: data.name !== undefined ? String(data.name).trim() : existing.name,
+    variables,
+    saludos: JSON.stringify(saludos),
+    cuerpos: JSON.stringify(cuerpos),
+    ctas: JSON.stringify(ctas),
+  };
+
+  if (data.mediaType !== undefined) updatePayload.mediaType = data.mediaType;
+  if (data.mediaPath !== undefined) updatePayload.mediaPath = data.mediaPath;
+  if (data.mediaName !== undefined) updatePayload.mediaName = data.mediaName;
+
+  await prisma.template.updateMany({
     where: { id: Number(id), userId },
-    data,
+    data: updatePayload,
   });
+
+  return getById(id, userId);
 }
 
 export async function remove(id, userId) {

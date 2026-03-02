@@ -92,15 +92,16 @@ export default function NewCampaignPage() {
         const saludos = Array.isArray(t.saludos) ? t.saludos : [];
         const cuerpos = Array.isArray(t.cuerpos) ? t.cuerpos : [];
         const ctas = Array.isArray(t.ctas) ? t.ctas : [];
-        const hasVariants = (saludos.length || 0) + (cuerpos.length || 0) + (ctas.length || 0) > 3;
-        const hasSpintaxInBody = t.body?.includes('{') && t.body?.includes('|');
+        const allParts = [...saludos, ...cuerpos, ...ctas].join('');
+        const hasVariants = saludos.length > 1 || cuerpos.length > 1 || ctas.length > 1;
+        const hasSpintax = allParts.includes('{') && allParts.includes('|');
         setPreview({
           samples: [{ phone: first.phone, body: buildMessageFromTemplate(t, firstVars) }],
           total: filteredItems.length,
           mediaType: t.mediaType || null,
           mediaName: t.mediaName || null,
           estimatedSeconds: totalSeconds,
-          hasSpintax: hasSpintaxInBody || hasVariants,
+          hasSpintax: hasSpintax || hasVariants,
         });
   }, [templateId, contactListId, filteredItems, templates]);
 
