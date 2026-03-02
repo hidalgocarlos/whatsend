@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment — NUNCA subir archivos con secretos
+.env
+.env.local
+.env.*.local
+.env.production
+backend/.env.production
+frontend/.env.production
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Logs and temp
+logs/
+*.log
+npm-debug.log*
+uploads/
+backups/
+wwebjs_auth/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Testing
+coverage/
+.nyc_output/

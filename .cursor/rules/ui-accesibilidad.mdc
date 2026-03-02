@@ -1,0 +1,23 @@
+---
+description: Priorizar consistencia de UI y accesibilidad en WhatSend
+alwaysApply: true
+---
+
+# Consistencia UI y accesibilidad
+
+En este proyecto **siempre prioriza**:
+
+## Consistencia de interfaz
+- **Sistema de diseño**: Usar las mismas escalas de color (slate, green para acciones/WhatsApp), espaciado (Tailwind: p-2, p-4, gap-2, etc.) y tamaños de texto en toda la app.
+- **Componentes**: Botones, inputs, tarjetas y enlaces deben seguir el mismo estilo (bordes redondeados, sombras, estados hover/disabled).
+- **Navegación y layout**: Mantener la misma estructura de sidebar + contenido; no introducir patrones distintos sin razón.
+- **Terminología**: Mismos nombres para las mismas acciones (ej. "Cerrar sesión", "Panel de Control") en toda la app.
+
+## Accesibilidad
+- **Contraste**: Texto legible sobre fondos (evitar grises muy claros sobre blanco). Verde sobre blanco solo si el contraste es suficiente.
+- **Etiquetas y nombres**: Todo `input` con `label` asociado (o `aria-label`); `alt` descriptivo en imágenes; botones con texto o `aria-label`.
+- **Navegación por teclado**: Formularios y enlaces accesibles con Tab; orden lógico; no depender solo del ratón.
+- **Focus visible**: No quitar el outline de focus sin sustituirlo por un indicador visible (ej. `focus:ring-2 focus:ring-green-500`).
+- **Roles semánticos**: Usar `<button>` para acciones, `<a>` para navegación; encabezados en orden (h1, h2…); landmarks cuando ayude (nav, main).
+
+Al proponer o modificar UI, revisa que se mantenga la consistencia con el resto de WhatSend y que la accesibilidad no empeore.

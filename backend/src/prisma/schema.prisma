@@ -1,0 +1,164 @@
+// WhatSend - Schema multiusuario, sin chat (solo envío masivo)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         Role         @default(OPERATOR)
+  isActive     Boolean      @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  campaigns    Campaign[]
+  sendLogs     SendLog[]
+  auditLogs    AuditLog[]
+  contactLists ContactList[]
+  templates    Template[]
+}
+
+model Template {
+  id         Int        @id @default(autoincrement())
+  userId     Int
+  name       String
+  body       String
+  variables  String     // JSON array: ["nombre","empresa"]
+  mediaType  String?    // "image" | "audio" | null
+  mediaPath  String?    // ruta relativa en disco: uploads/templates/xxx.jpg
+  mediaName  String?    // nombre original del archivo subido
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns  Campaign[]
+}
+
+model ContactList {
+  id        Int                 @id @default(autoincrement())
+  userId    Int
+  name      String
+  createdAt DateTime            @default(now())
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     ContactListItem[]
+  campaigns Campaign[]
+}
+
+model ContactListItem {
+  id            Int          @id @default(autoincrement())
+  contactListId Int
+  phone         String
+  variables     String       // JSON: {"nombre":"Juan","empresa":"Acme"}
+  tags          String       @default("[]")  // JSON: ["cliente","vip","bogota"]
+  contactList   ContactList  @relation(fields: [contactListId], references: [id], onDelete: Cascade)
+
+  @@index([contactListId])
+}
+
+model Campaign {
+  id              Int                 @id @default(autoincrement())
+  userId          Int
+  templateId      Int
+  contactListId   Int
+  status          CampaignStatus      @default(PENDING)
+  totalRecipients Int
+  sentCount       Int                 @default(0)
+  failedCount     Int                 @default(0)
+  scheduledAt     DateTime?
+  createdAt       DateTime            @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template        Template            @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  contactList     ContactList         @relation(fields: [contactListId], references: [id], onDelete: Cascade)
+  recipients      CampaignRecipient[]
+  sendLogs        SendLog[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum CampaignStatus {
+  SCHEDULED
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model CampaignRecipient {
+  id          Int             @id @default(autoincrement())
+  campaignId  Int
+  phone       String
+  variables   String
+  status      RecipientStatus @default(PENDING)
+  errorMsg    String?
+  sentAt      DateTime?
+  campaign    Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sendLog     SendLog?
+
+  @@index([campaignId])
+  @@index([campaignId, status])
+}
+
+enum RecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model SendLog {
+  id           Int               @id @default(autoincrement())
+  campaignId   Int
+  recipientId  Int               @unique
+  userId       Int
+  phone        String
+  messageBody  String
+  status       RecipientStatus
+  errorCode    String?
+  errorMessage String?
+  attemptCount Int               @default(1)
+  sentAt       DateTime?
+  createdAt    DateTime          @default(now())
+  campaign     Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient    CampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([campaignId, status])
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  action     String
+  resource   String?
+  resourceId Int?
+  metadata   String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AppConfig {
+  key   String @id
+  value String
+}

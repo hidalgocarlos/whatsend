@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+!.env.example
+wwebjs_auth
+uploads
+dist
+.git
+*.log
