@@ -79,7 +79,7 @@ export default function CampaignDetailPage() {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Campaña #{campaign.id}</h1>
+        <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight">Campaña #{campaign.id}</h1>
         <Link to="/campaigns" className="font-medium text-[#25D366] hover:text-emerald-600 transition-colors">Ver historial</Link>
       </div>
 
@@ -97,7 +97,7 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8 transition-shadow duration-200 hover:shadow-card-hover">
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
             <p className="text-2xl font-bold text-emerald-700">{progress.sent}</p>
@@ -148,7 +148,7 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
         <h2 className="px-6 py-4 font-semibold text-slate-900 border-b border-slate-100">Destinatarios</h2>
         <div className="overflow-x-auto max-h-96">
           <table className="w-full text-sm">

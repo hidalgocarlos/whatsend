@@ -16,7 +16,7 @@ export default function SendLogsPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">Logs de envío</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Logs de envío</h1>
 
       <div className="flex gap-3 mb-6">
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-slate-800">
@@ -34,7 +34,7 @@ export default function SendLogsPage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50/80 border-b border-slate-100">

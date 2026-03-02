@@ -51,9 +51,9 @@ export default function UsersPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">Usuarios</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Usuarios</h1>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8 transition-shadow duration-200 hover:shadow-card-hover">
         <h2 className="font-semibold text-slate-900 tracking-tight mb-5">{editing ? 'Editar' : 'Nuevo'} usuario</h2>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -91,7 +91,7 @@ export default function UsersPage() {
             <p className="text-sm text-red-700 bg-red-50/90 px-4 py-3 rounded-xl border border-red-100" role="alert">{formError}</p>
           )}
           <div className="flex gap-3">
-            <button type="submit" disabled={loading} className="px-5 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:opacity-95 disabled:opacity-50 shadow-md transition-all">Guardar</button>
+            <button type="submit" disabled={loading} className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl disabled:opacity-50 shadow-card transition-all duration-200">Guardar</button>
             {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: '', email: '', password: '', role: 'OPERATOR' }); setFormError(''); }} className="px-5 py-2.5 border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>}
           </div>
         </form>
@@ -107,7 +107,7 @@ export default function UsersPage() {
                 <p className="text-sm text-red-700 bg-red-50/90 px-4 py-3 rounded-xl border border-red-100" role="alert">{resetError}</p>
               )}
               <div className="flex gap-3">
-                <button type="submit" className="px-4 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:opacity-95">Guardar</button>
+                <button type="submit" className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-colors duration-200">Guardar</button>
                 <button type="button" onClick={() => { setResetPass(null); setNewPassword(''); setResetError(''); }} className="px-4 py-2.5 border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50">Cerrar</button>
               </div>
             </form>
@@ -115,7 +115,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
         <table className="w-full">
           <thead className="bg-slate-50/80 border-b border-slate-100">
             <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">

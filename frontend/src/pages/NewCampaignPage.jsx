@@ -140,7 +140,7 @@ export default function NewCampaignPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">Nueva campaña</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Nueva campaña</h1>
 
       {/* Cupo 24 h */}
       {usage24h != null && (
@@ -153,7 +153,7 @@ export default function NewCampaignPage() {
         </div>
       )}
 
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-card border border-slate-100 p-8 space-y-5">
+      <form onSubmit={submit} className="bg-white rounded-2xl shadow-card border border-slate-100 p-8 space-y-5 transition-shadow duration-200 hover:shadow-card-hover">
         {/* Plantilla */}
         <div>
           <label htmlFor="campaign-template" className="block text-sm font-semibold text-slate-700 mb-2">Plantilla</label>
@@ -317,7 +317,7 @@ export default function NewCampaignPage() {
         <button
           type="submit"
           disabled={loading || !templateId || !contactListId || overLimit}
-          className="w-full py-3.5 bg-[#25D366] text-white font-semibold rounded-xl hover:opacity-95 disabled:opacity-50 transition-all shadow-md focus:ring-2 focus:ring-green-500/30 focus:ring-offset-2"
+          className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl disabled:opacity-50 transition-all duration-200 shadow-card focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
         >
           {loading
             ? 'Procesando...'

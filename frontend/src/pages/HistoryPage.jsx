@@ -13,9 +13,9 @@ export default function HistoryPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">Historial de campañas</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Historial de campañas</h1>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
         <table className="w-full">
           <thead className="bg-slate-50/80 border-b border-slate-100">
             <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">

@@ -256,9 +256,9 @@ export default function TemplatesPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">Plantillas</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">Plantillas</h1>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-6 mb-8 transition-shadow duration-200 hover:shadow-card-hover">
         <h2 className="font-semibold text-slate-900 tracking-tight mb-5">{editing ? 'Editar' : 'Nueva'} plantilla</h2>
         <form onSubmit={submit} className="space-y-5">
           <div>
@@ -390,7 +390,7 @@ export default function TemplatesPage() {
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:opacity-95 disabled:opacity-50 shadow-md transition-all"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl disabled:opacity-50 shadow-card transition-all duration-200"
             >
               {loading ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear plantilla'}
             </button>
@@ -407,7 +407,7 @@ export default function TemplatesPage() {
         </form>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
         <table className="w-full">
           <thead className="bg-slate-50/80 border-b border-slate-100">
             <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">

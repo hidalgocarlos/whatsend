@@ -71,9 +71,9 @@ export default function WhatsAppPage() {
 
   return (
     <div className="p-8 max-w-lg mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">WhatsApp</h1>
+      <h1 className="font-display text-3xl font-bold text-slate-900 tracking-tight mb-8">WhatsApp</h1>
 
-      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl shadow-card border border-slate-100 p-8 transition-shadow duration-200 hover:shadow-card-hover">
         <div className="flex items-center gap-3 mb-6">
           <span
             className={`w-3.5 h-3.5 rounded-full shrink-0 ${
@@ -89,8 +89,9 @@ export default function WhatsAppPage() {
 
         {!isConnected && !connecting && (
           <button
+            type="button"
             onClick={connect}
-            className="w-full py-3.5 bg-[#25D366] text-white font-semibold rounded-xl hover:opacity-95 transition-all shadow-md focus:ring-2 focus:ring-green-500/30 focus:ring-offset-2"
+            className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all duration-200 shadow-card hover:shadow-card-hover focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
           >
             Conectar WhatsApp
           </button>
@@ -101,7 +102,7 @@ export default function WhatsAppPage() {
             {qr ? (
               <img src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`} alt="Código QR para vincular WhatsApp" className="mx-auto w-64 h-64 object-contain rounded-xl" />
             ) : (
-              <p className="text-slate-500 font-medium">Generando QR...</p>
+              <p className="text-slate-500 font-medium animate-pulse">Generando QR...</p>
             )}
             <p className="mt-3 text-sm text-slate-600 font-medium">Escanea con WhatsApp en tu teléfono</p>
           </div>

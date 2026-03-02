@@ -41,11 +41,13 @@ export default function App() {
       .finally(() => setReady(true));
   }, []);
 
-  // Spinner mínimo mientras se comprueba la sesión (~100-200ms)
   if (!ready) {
     return (
-      <div className="min-h-screen bg-slate-100/80 flex items-center justify-center">
-        <div className="w-10 h-10 border-[3px] border-slate-200 border-t-[#25D366] rounded-full animate-spin" aria-hidden="true" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-12 h-12 border-[3px] border-primary-light border-t-primary rounded-full animate-spin" aria-hidden="true" />
+          <span className="font-display font-semibold text-slate-500 text-sm tracking-tight">WhatSend</span>
+        </div>
       </div>
     );
   }

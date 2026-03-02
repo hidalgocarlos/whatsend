@@ -130,25 +130,26 @@ export default function Layout({ children }) {
     unknown:      { color: 'bg-slate-600',  label: 'WhatsApp' },
   }[waStatus] ?? { color: 'bg-slate-600', label: waStatus };
 
+  const navLinkClass = 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors duration-200';
+
   return (
-    <div className="min-h-screen bg-slate-100/80 flex">
-      <aside className="w-60 bg-slate-900 text-white flex flex-col shadow-card-hover">
+    <div className="min-h-screen bg-slate-100 flex">
+      <aside className="w-60 bg-slate-900 text-white flex flex-col shadow-elevated">
         <div className="px-4 pt-5 pb-3">
           <Link
             to="/whatsapp"
-            className="flex items-center justify-center w-full py-3 rounded-xl font-semibold text-white text-sm transition-all hover:opacity-95 shadow-md"
-            style={{ backgroundColor: '#25D366' }}
+            className="flex items-center justify-center w-full py-3 rounded-xl font-semibold text-white text-sm bg-primary hover:bg-primary-hover transition-all duration-200 hover:shadow-card-hover shadow-card"
           >
             Conectar WhatsApp
           </Link>
         </div>
         <div className="px-4 pt-4 pb-4 border-b border-slate-700/80 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-lg tracking-tight" style={{ color: '#25D366' }}>WhatSend</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display font-bold text-lg tracking-tight text-primary">WhatSend</span>
             <Link
               to="/whatsapp"
               title={statusDot.label}
-              className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors rounded-lg px-2 py-1.5"
+              className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors duration-200 rounded-lg px-2 py-1.5"
             >
               <span className={`w-3.5 h-3.5 rounded-full shrink-0 ${statusDot.color}`} />
               <span className="truncate max-w-[72px]">{statusDot.label}</span>
@@ -167,49 +168,50 @@ export default function Layout({ children }) {
           )}
         </div>
         <nav className="p-3 flex-1 space-y-0.5">
-          <Link to="/" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Panel de Control</Link>
-          <Link to="/whatsapp" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">WhatsApp</Link>
-          <Link to="/templates" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Plantillas</Link>
-          <Link to="/lists" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Listas</Link>
-          <Link to="/campaigns/new" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Nueva campaña</Link>
-          <Link to="/campaigns" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Historial</Link>
-          <Link to="/logs" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Logs</Link>
+          <Link to="/" className={navLinkClass}>Panel de Control</Link>
+          <Link to="/whatsapp" className={navLinkClass}>WhatsApp</Link>
+          <Link to="/templates" className={navLinkClass}>Plantillas</Link>
+          <Link to="/lists" className={navLinkClass}>Listas</Link>
+          <Link to="/campaigns/new" className={navLinkClass}>Nueva campaña</Link>
+          <Link to="/campaigns" className={navLinkClass}>Historial</Link>
+          <Link to="/logs" className={navLinkClass}>Logs</Link>
           {user?.role === 'ADMIN' && (
             <>
-              <Link to="/users" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Usuarios</Link>
-              <Link to="/audit" className="block px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">Auditoría</Link>
+              <Link to="/users" className={navLinkClass}>Usuarios</Link>
+              <Link to="/audit" className={navLinkClass}>Auditoría</Link>
             </>
           )}
         </nav>
-        <div className="p-4 border-t border-slate-700/80">
-          <p className="text-left text-lg font-bold tracking-tight mb-2" aria-hidden="true">
+        <div className="p-4 border-t border-slate-700/80 bg-slate-800/40">
+          <p className="text-left text-lg font-display font-bold tracking-tight mb-2" aria-hidden="true">
             {'hidalgotech'.split('').map((char, i) => (
               <span key={i} style={{ color: i % 2 === 0 ? '#25D366' : '#eab308' }}>{char}</span>
             ))}
           </p>
           <p className="text-sm text-slate-400 truncate font-medium">{user?.email}</p>
           <button
+            type="button"
             onClick={handleLogout}
-            className="mt-2 text-sm text-slate-500 hover:text-white transition-colors focus:ring-0 focus:ring-offset-0"
+            className="mt-2 text-sm text-slate-500 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-0"
           >
             Cerrar sesión
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto flex flex-col bg-slate-50/50">
+      <main className="flex-1 overflow-auto flex flex-col bg-slate-50">
         {showDisconnectionWarning && (
           <Link
             to="/whatsapp"
-            className="flex items-center justify-center gap-2 py-3 px-4 bg-amber-500/95 text-amber-950 font-semibold text-sm animate-pulse hover:bg-amber-400 transition-colors shadow-card"
+            className="flex items-center justify-center gap-2 py-3 px-4 bg-amber-500/95 text-amber-950 font-semibold text-sm hover:bg-amber-400 transition-colors duration-200 shadow-card"
           >
             <span className="inline-block w-2 h-2 rounded-full bg-amber-900 animate-pulse" />
             WhatsApp desconectado hace más de 1 minuto — Reconecta aquí
           </Link>
         )}
         {(time || dateStr) && (
-          <div className="flex justify-end items-center gap-4 px-6 py-3 bg-white/90 border-b border-slate-200/80 shrink-0 flex-wrap shadow-card">
+          <div className="flex justify-end items-center gap-4 px-6 py-3 bg-white border-b border-slate-200 shrink-0 flex-wrap shadow-card">
             {dateStr && <span className="text-slate-600 text-sm">{dateStr.replace(/\bDe\b/g, 'de').replace(/^./, (c) => c.toUpperCase())}</span>}
-            {time && <span className="text-lg font-semibold text-slate-800 tracking-tight">{time}</span>}
+            {time && <span className="text-lg font-display font-semibold text-slate-800 tracking-tight">{time}</span>}
             {city && <span className="text-sm text-slate-500">{city}</span>}
           </div>
         )}
