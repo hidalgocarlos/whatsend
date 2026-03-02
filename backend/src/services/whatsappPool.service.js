@@ -13,6 +13,31 @@ import pino from 'pino';
 
 const authPath = path.resolve(process.cwd(), 'wwebjs_auth');
 
+// Versión de WA cacheada en memoria para no hacer una llamada HTTP en cada conexión.
+// Se renueva cada hora para mantenerse actualizada sin penalizar el inicio de sesión.
+let _waVersionCache = null;
+let _waVersionFetchedAt = 0;
+const WA_VERSION_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+async function getWAVersion() {
+  const now = Date.now();
+  if (_waVersionCache && now - _waVersionFetchedAt < WA_VERSION_TTL_MS) {
+    return _waVersionCache;
+  }
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 5000)
+    );
+    const { version } = await Promise.race([fetchLatestBaileysVersion(), timeoutPromise]);
+    _waVersionCache = version;
+    _waVersionFetchedAt = now;
+    return version;
+  } catch (err) {
+    console.warn('[whatsapp] fetchLatestBaileysVersion falló, usando versión cacheada o default:', err.message);
+    return _waVersionCache ?? [2, 3000, 0];
+  }
+}
+
 // Mapa userId -> { sock, status, phone, lastQr }
 const clients = new Map();
 
@@ -47,14 +72,7 @@ export async function getOrCreateClient(userId) {
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
-  // Versión actualizada de WhatsApp Web — evita el error 405
-  let version;
-  try {
-    ({ version } = await fetchLatestBaileysVersion());
-  } catch (err) {
-    console.warn('[whatsapp] No se pudo obtener la última versión de WA, usando la empaquetada:', err.message);
-    version = [2, 3000, 0];
-  }
+  const version = await getWAVersion();
 
   const logger = pino({ level: 'silent' });
 
