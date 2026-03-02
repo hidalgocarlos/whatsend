@@ -82,8 +82,9 @@ export async function getOrCreateClient(userId) {
     logger,
     browser: Browsers.ubuntu('Chrome'),
     printQRInTerminal: false,
-    connectTimeoutMs: 60_000,
-    retryRequestDelayMs: 2000,
+    connectTimeoutMs: 120_000,
+    keepAliveIntervalMs: 30_000,
+    retryRequestDelayMs: 3000,
   });
 
   const entry = { sock, status: 'initializing', phone: null, lastQr: null };
