@@ -80,7 +80,7 @@ export async function getOrCreateClient(userId) {
     version,
     auth: state,
     logger,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: ['WhatSend', 'Chrome', '20.0.04'],
     printQRInTerminal: false,
     connectTimeoutMs: 120_000,
     keepAliveIntervalMs: 30_000,
