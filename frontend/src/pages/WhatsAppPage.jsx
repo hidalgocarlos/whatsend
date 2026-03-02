@@ -77,7 +77,7 @@ export default function WhatsAppPage() {
         <div className="flex items-center gap-3 mb-6">
           <span
             className={`w-3.5 h-3.5 rounded-full shrink-0 ${
-              isConnected ? 'bg-emerald-500' : status.status === 'initializing' ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'
+              isConnected ? 'bg-emerald-500' : status.status === 'initializing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'
             }`}
             aria-hidden="true"
           />
