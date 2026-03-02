@@ -1,6 +1,6 @@
 # WhatSend
 
-Aplicación web multiusuario para envío masivo de mensajes WhatsApp (hasta 100 por campaña). Cada usuario conecta su propio número vía QR. Dashboard con estadísticas en tiempo real e históricas.
+Aplicación web multiusuario para envío masivo de mensajes WhatsApp (hasta 80 por campaña en 24H). Cada usuario conecta su propio número vía QR. Dashboard con estadísticas en tiempo real e históricas.
 
 ## Requisitos
 
