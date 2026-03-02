@@ -38,7 +38,7 @@ export default function UsersPage() {
 
   async function resetPasswordSubmit(e) {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 6) return;
+    if (!newPassword || newPassword.length < 8) return;
     setResetError('');
     try {
       await api.post(`/api/users/${resetPass.id}/reset-password`, { newPassword });
@@ -69,7 +69,7 @@ export default function UsersPage() {
           {!editing && (
             <div>
               <label htmlFor="user-password" className="block text-sm font-semibold text-slate-700 mb-2">Contraseña</label>
-              <input id="user-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500" required={!editing} minLength={6} />
+              <input id="user-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500" required={!editing} minLength={8} placeholder="Mín. 8 caracteres" />
             </div>
           )}
           <div className="flex gap-6 items-center">
@@ -102,7 +102,7 @@ export default function UsersPage() {
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-card-hover border border-slate-100">
             <h3 className="font-semibold text-slate-900 mb-4">Nueva contraseña para {resetPass.email}</h3>
             <form onSubmit={resetPasswordSubmit} className="space-y-4">
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mín. 6 caracteres" className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500" minLength={6} required />
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mín. 8 caracteres" className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500" minLength={8} required />
               {resetError && (
                 <p className="text-sm text-red-700 bg-red-50/90 px-4 py-3 rounded-xl border border-red-100" role="alert">{resetError}</p>
               )}
