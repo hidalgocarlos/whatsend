@@ -115,7 +115,7 @@ const emptyForm = () => ({
 export default function TemplatesPage() {
   const [list, setList] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(emptyForm());
   const [mediaFile, setMediaFile] = useState(null);
   const [clearMedia, setClearMedia] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -253,14 +253,10 @@ export default function TemplatesPage() {
       else if (clearMedia) fd.append('clearMedia', 'true');
 
       if (editing) {
-        const { data } = await api.put(`/api/templates/${editing.id}`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const { data } = await api.put(`/api/templates/${editing.id}`, fd);
         setList((prev) => prev.map((t) => (t.id === editing.id ? data : t)));
       } else {
-        const { data } = await api.post('/api/templates', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const { data } = await api.post('/api/templates', fd);
         setList((prev) => [data, ...prev]);
       }
       cancelEdit();
