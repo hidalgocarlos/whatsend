@@ -8,7 +8,6 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from './lib/prisma.js';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import usersRoutes from './routes/users.routes.js';
@@ -66,7 +65,6 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/refresh', refreshLimiter);
 app.use('/api/auth/password', passwordLimiter);
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 

@@ -53,7 +53,7 @@ export async function getOrCreateClient(userId) {
     ({ version } = await fetchLatestBaileysVersion());
   } catch (err) {
     console.warn('[whatsapp] No se pudo obtener la última versión de WA, usando la empaquetada:', err.message);
-    ({ version } = await import('@whiskeysockets/baileys').then(m => ({ version: m.baileysVersion ?? [2, 3000, 0] })).catch(() => ({ version: [2, 3000, 0] })));
+    version = [2, 3000, 0];
   }
 
   const logger = pino({ level: 'silent' });

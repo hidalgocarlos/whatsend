@@ -7,42 +7,52 @@ const MAX_RECIPIENTS = 100;
 const VALID_CAMPAIGN_STATUSES = new Set(['SCHEDULED', 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']);
 
 export async function list(req, res) {
-  const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
-  const status = req.query.status;
-  const where = { userId: req.user.id };
-  if (status) {
-    if (!VALID_CAMPAIGN_STATUSES.has(status)) {
-      return res.status(400).json({ error: 'Estado de campaña inválido' });
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+    const status = req.query.status;
+    const where = { userId: req.user.id };
+    if (status) {
+      if (!VALID_CAMPAIGN_STATUSES.has(status)) {
+        return res.status(400).json({ error: 'Estado de campaña inválido' });
+      }
+      where.status = status;
     }
-    where.status = status;
-  }
 
-  const [items, total] = await Promise.all([
-    prisma.campaign.findMany({
-      where,
-      include: { template: { select: { name: true } }, contactList: { select: { name: true } } },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.campaign.count({ where }),
-  ]);
-  res.json({ items, total, page, limit });
+    const [items, total] = await Promise.all([
+      prisma.campaign.findMany({
+        where,
+        include: { template: { select: { name: true } }, contactList: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.campaign.count({ where }),
+    ]);
+    res.json({ items, total, page, limit });
+  } catch (err) {
+    console.error('[campaigns list]', err);
+    res.status(500).json({ error: 'Error al obtener campañas' });
+  }
 }
 
 export async function getOne(req, res) {
-  const id = Number(req.params.id);
-  const campaign = await prisma.campaign.findFirst({
-    where: { id, userId: req.user.id },
-    include: {
-      template: true,
-      contactList: true,
-      recipients: true,
-    },
-  });
-  if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
-  res.json(campaign);
+  try {
+    const id = Number(req.params.id);
+    const campaign = await prisma.campaign.findFirst({
+      where: { id, userId: req.user.id },
+      include: {
+        template: true,
+        contactList: true,
+        recipients: true,
+      },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
+    res.json(campaign);
+  } catch (err) {
+    console.error('[campaigns getOne]', err);
+    res.status(500).json({ error: 'Error al obtener campaña' });
+  }
 }
 
 export async function create(req, res) {
@@ -155,17 +165,22 @@ export async function create(req, res) {
 }
 
 export async function cancel(req, res) {
-  const id = Number(req.params.id);
-  const campaign = await prisma.campaign.findFirst({
-    where: { id, userId: req.user.id },
-  });
-  if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
-  if (!['RUNNING', 'PENDING', 'SCHEDULED'].includes(campaign.status)) {
-    return res.status(400).json({ error: 'La campaña no está en curso' });
+  try {
+    const id = Number(req.params.id);
+    const campaign = await prisma.campaign.findFirst({
+      where: { id, userId: req.user.id },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
+    if (!['RUNNING', 'PENDING', 'SCHEDULED'].includes(campaign.status)) {
+      return res.status(400).json({ error: 'La campaña no está en curso' });
+    }
+    const result = await queueService.pauseCampaign(id);
+    req.auditResourceId = id;
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[campaigns cancel]', err);
+    res.status(500).json({ error: 'Error al cancelar campaña' });
   }
-  const result = await queueService.pauseCampaign(id);
-  req.auditResourceId = id;
-  res.json({ ok: true, ...result });
 }
 
 export async function eventsStream(req, res) {
@@ -223,21 +238,26 @@ export async function eventsStream(req, res) {
 }
 
 export async function exportCSV(req, res) {
-  const id = Number(req.params.id);
-  const campaign = await prisma.campaign.findFirst({
-    where: { id, userId: req.user.id },
-    include: { recipients: true, template: { select: { name: true } } },
-  });
-  if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
+  try {
+    const id = Number(req.params.id);
+    const campaign = await prisma.campaign.findFirst({
+      where: { id, userId: req.user.id },
+      include: { recipients: true, template: { select: { name: true } } },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
 
-  const header = 'phone,status,errorMsg,sentAt\n';
-  const rows = campaign.recipients.map((r) => {
-    const sentAt = r.sentAt ? r.sentAt.toISOString() : '';
-    const err = (r.errorMsg || '').replace(/"/g, '""');
-    return `${r.phone},${r.status},"${err}",${sentAt}`;
-  });
-  const csv = header + rows.join('\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="campaign-${id}.csv"`);
-  res.send(csv);
+    const header = 'phone,status,errorMsg,sentAt\n';
+    const rows = campaign.recipients.map((r) => {
+      const sentAt = r.sentAt ? r.sentAt.toISOString() : '';
+      const errorMsg = (r.errorMsg || '').replace(/"/g, '""');
+      return `${r.phone},${r.status},"${errorMsg}",${sentAt}`;
+    });
+    const csv = header + rows.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="campaign-${id}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('[campaigns exportCSV]', err);
+    res.status(500).json({ error: 'Error al exportar campaña' });
+  }
 }

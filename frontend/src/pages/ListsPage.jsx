@@ -344,7 +344,7 @@ function ContactsPanel({ listId, listName, onClose }) {
     ]).then(([listRes, tagsRes]) => {
       setItems(listRes.data.items || []);
       setAllTags(tagsRes.data || []);
-    }).catch(console.error)
+    }).catch((err) => console.error('[ContactsPanel] loadList', err))
       .finally(() => setLoading(false));
   }
 
