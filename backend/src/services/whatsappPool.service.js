@@ -17,7 +17,7 @@ const authPath = path.resolve(process.cwd(), 'wwebjs_auth');
 // Se renueva cada hora para mantenerse actualizada sin penalizar el inicio de sesión.
 let _waVersionCache = null;
 let _waVersionFetchedAt = 0;
-const WA_VERSION_TTL_MS = 60 * 60 * 1000; // 1 hora
+const WA_VERSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 horas
 
 async function getWAVersion() {
   const now = Date.now();
