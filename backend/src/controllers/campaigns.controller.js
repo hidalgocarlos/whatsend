@@ -141,7 +141,14 @@ export async function create(req, res) {
       campaign.id,
       req.user.id,
       campaign.recipients,
-      { body: template.body, mediaType: template.mediaType, mediaPath: template.mediaPath },
+      {
+        body: template.body,
+        saludos: template.saludos,
+        cuerpos: template.cuerpos,
+        ctas: template.ctas,
+        mediaType: template.mediaType,
+        mediaPath: template.mediaPath,
+      },
       initialDelay
     );
   } catch (err) {

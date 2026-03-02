@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api.js';
-import { resolveSpintax } from '../lib/templateUtils.js';
+import { resolveMessage, buildMessageFromTemplate } from '../lib/templateUtils.js';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,audio/mpeg,audio/ogg,audio/mp4';
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -42,17 +42,6 @@ function MediaPreview({ mediaType, mediaPath, localFile }) {
     );
   }
   return null;
-}
-
-function countVariants(text) {
-  if (!text || !text.includes('{')) return 1;
-  let count = 1;
-  const regex = /\{([^{}]+)\}/g;
-  let m;
-  while ((m = regex.exec(text)) !== null) {
-    count *= m[1].split('|').length;
-  }
-  return count;
 }
 
 // ---------- Asistente de palabras alternativas ----------
@@ -116,18 +105,26 @@ function VariationHelper({ onInsert }) {
   );
 }
 
+const emptyForm = () => ({
+  name: '',
+  saludos: [''],
+  cuerpos: [''],
+  ctas: [''],
+});
+
 export default function TemplatesPage() {
   const [list, setList] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', body: '' });
+  const [form, setForm] = useState(emptyForm);
   const [mediaFile, setMediaFile] = useState(null);
   const [clearMedia, setClearMedia] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [spintaxPreview, setSpintaxPreview] = useState('');
+  const [previewSample, setPreviewSample] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [previewModalSample, setPreviewModalSample] = useState('');
   const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
+  const focusedInputRef = useRef(null);
 
   useEffect(() => {
     api.get('/api/templates').then((r) => setList(r.data)).catch(console.error);
@@ -135,8 +132,25 @@ export default function TemplatesPage() {
 
   function startEdit(t) {
     setEditing(t);
-    setForm({ name: t.name, body: t.body });
-    setSpintaxPreview(resolveSpintax(t.body));
+    const saludos = Array.isArray(t.saludos) && t.saludos.length > 0 ? t.saludos : [];
+    const cuerpos = Array.isArray(t.cuerpos) && t.cuerpos.length > 0 ? t.cuerpos : [];
+    const ctas = Array.isArray(t.ctas) && t.ctas.length > 0 ? t.ctas : [];
+    if (saludos.length || cuerpos.length || ctas.length) {
+      setForm({
+        name: t.name,
+        saludos: saludos.length ? saludos : [''],
+        cuerpos: cuerpos.length ? cuerpos : [''],
+        ctas: ctas.length ? ctas : [''],
+      });
+    } else {
+      setForm({
+        name: t.name,
+        saludos: [''],
+        cuerpos: [t.body || ''],
+        ctas: [''],
+      });
+    }
+    setPreviewSample(null);
     setMediaFile(null);
     setClearMedia(false);
     setError(null);
@@ -145,35 +159,47 @@ export default function TemplatesPage() {
 
   function cancelEdit() {
     setEditing(null);
-    setForm({ name: '', body: '' });
-    setSpintaxPreview('');
+    setForm(emptyForm());
+    setPreviewSample(null);
     setMediaFile(null);
     setClearMedia(false);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  function handleBodyChange(e) {
-    const val = e.target.value;
-    setForm(f => ({ ...f, body: val }));
-    setSpintaxPreview(resolveSpintax(val));
+  function updatePart(section, index, value) {
+    setForm((f) => ({
+      ...f,
+      [section]: f[section].map((v, i) => (i === index ? value : v)),
+    }));
   }
 
-  // Inserta un snippet de spintax en la posición del cursor
+  function addPart(section) {
+    setForm((f) => ({ ...f, [section]: [...f[section], ''] }));
+  }
+
+  function removePart(section, index) {
+    setForm((f) => ({
+      ...f,
+      [section]: f[section].filter((_, i) => i !== index).length ? f[section].filter((_, i) => i !== index) : [''],
+    }));
+  }
+
+  function registerFocus(section, index, setValue, el) {
+    focusedInputRef.current = { section, index, setValue, el };
+  }
+
   function insertSpintax(snippet) {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const before = form.body.slice(0, start);
-    const after = form.body.slice(end);
-    const newBody = before + snippet + after;
-    setForm(f => ({ ...f, body: newBody }));
-    setSpintaxPreview(resolveSpintax(newBody));
-    // Restaurar foco y cursor
+    const cur = focusedInputRef.current;
+    if (!cur?.el) return;
+    const start = cur.el.selectionStart;
+    const end = cur.el.selectionEnd;
+    const val = cur.el.value ?? '';
+    const newVal = val.slice(0, start) + snippet + val.slice(end);
+    cur.setValue(newVal);
     requestAnimationFrame(() => {
-      el.focus();
-      el.selectionStart = el.selectionEnd = start + snippet.length;
+      cur.el.focus();
+      cur.el.selectionStart = cur.el.selectionEnd = start + snippet.length;
     });
   }
 
@@ -205,20 +231,26 @@ export default function TemplatesPage() {
     return null;
   }
 
+  const hasContent = () => {
+    const hasSaludo = form.saludos.some((s) => String(s).trim() !== '');
+    const hasCuerpo = form.cuerpos.some((c) => String(c).trim() !== '');
+    return hasSaludo && hasCuerpo;
+  };
+
   async function submit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.body.trim()) return;
+    if (!form.name.trim() || !hasContent()) return;
     setLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('name', form.name.trim());
-      fd.append('body', form.body.trim());
-      if (mediaFile) {
-        fd.append('media', mediaFile);
-      } else if (clearMedia) {
-        fd.append('clearMedia', 'true');
-      }
+      fd.append('saludos', JSON.stringify(form.saludos));
+      fd.append('cuerpos', JSON.stringify(form.cuerpos));
+      fd.append('ctas', JSON.stringify(form.ctas));
+      fd.append('body', '');
+      if (mediaFile) fd.append('media', mediaFile);
+      else if (clearMedia) fd.append('clearMedia', 'true');
 
       if (editing) {
         const { data } = await api.put(`/api/templates/${editing.id}`, fd, {
@@ -273,80 +305,85 @@ export default function TemplatesPage() {
             />
           </div>
 
-          <div className="space-y-3">
-            <label htmlFor="template-body" className="block text-sm font-semibold text-slate-700">
-              Texto del mensaje
-            </label>
-
-            {/* Ayuda amigable */}
-            <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2.5 text-sm">
-              <p className="font-semibold text-blue-800">💡 Dos trucos para personalizar el mensaje:</p>
-              <div className="space-y-2">
-                <div className="flex gap-2.5">
-                  <span className="text-blue-500 font-bold text-base leading-tight mt-0.5">1.</span>
-                  <div>
-                    <p className="text-blue-800 font-medium">Nombre del destinatario</p>
-                    <p className="text-blue-600 text-xs mt-0.5">
-                      Escribe <code className="bg-white border border-blue-200 px-1.5 py-0.5 rounded font-mono text-blue-700">{'{{nombre}}'}</code> y se reemplaza automáticamente con el nombre de cada persona.
-                    </p>
-                    <p className="text-blue-500 text-xs mt-1 italic">Ej: "Hola {'{{nombre}}'}, tenemos algo para ti."</p>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <span className="text-blue-500 font-bold text-base leading-tight mt-0.5">2.</span>
-                  <div>
-                    <p className="text-blue-800 font-medium">Palabras que cambian en cada mensaje</p>
-                    <p className="text-blue-600 text-xs mt-0.5">
-                      Usa el botón <strong>"Agregar palabras alternativas"</strong> de abajo para que el sistema use una frase diferente en cada envío. Así ningún mensaje es idéntico.
-                    </p>
-                    <p className="text-blue-500 text-xs mt-1 italic">Ej: "Hola / Buenos días / Buenas tardes" → cada persona recibe uno diferente.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Asistente de alternativas */}
-            <VariationHelper onInsert={insertSpintax} />
-
-            {/* Textarea */}
-            <textarea
-              id="template-body"
-              ref={textareaRef}
-              value={form.body}
-              onChange={handleBodyChange}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl h-36 focus:ring-2 focus:ring-green-500/25 focus:border-green-500 transition-shadow text-sm leading-relaxed"
-              placeholder={'Hola {{nombre}}, te escribimos de nuestra empresa.\n¡Tenemos algo especial para ti!'}
-              required
-            />
-
-            {/* Preview en vivo */}
-            {form.body && (
-              <div className="p-4 bg-[#E7FEDD] border border-[#C5F0A4] rounded-2xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
-                    <span>📱</span> Así se verá el mensaje al enviarse
-                  </p>
-                  {countVariants(form.body) > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setSpintaxPreview(resolveSpintax(form.body))}
-                      className="text-xs text-emerald-700 underline hover:no-underline font-medium"
-                    >
-                      Ver otra versión →
-                    </button>
-                  )}
-                </div>
-                <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                  {spintaxPreview || resolveSpintax(form.body)}
-                </p>
-                {countVariants(form.body) > 1 && (
-                  <p className="mt-2 text-xs text-emerald-600">
-                    ✅ Este mensaje tiene <strong>{countVariants(form.body)}</strong> versiones distintas — cada persona recibirá una diferente.
-                  </p>
-                )}
-              </div>
-            )}
+          {/* Ayuda */}
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2.5 text-sm">
+            <p className="font-semibold text-blue-800">💡 Mensaje en 3 partes: Saludo → Cuerpo → CTA. Puedes añadir varias opciones en cada parte; el sistema elegirá una al azar por envío.</p>
+            <p className="text-blue-600 text-xs">
+              Usa <code className="bg-white border border-blue-200 px-1 py-0.5 rounded font-mono text-blue-700">{'{{nombre}}'}</code> para el nombre. Botón <strong>«Agregar palabras alternativas»</strong> para variaciones en cada parte.
+            </p>
           </div>
+
+          <VariationHelper onInsert={insertSpintax} />
+
+          {/* Saludos */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">Saludo</label>
+            {form.saludos.map((val, i) => (
+              <div key={`s-${i}`} className="flex gap-2 items-start">
+                <input
+                  value={val}
+                  onChange={(e) => updatePart('saludos', i, e.target.value)}
+                  onFocus={(e) => registerFocus('saludos', i, (v) => updatePart('saludos', i, v), e.target)}
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm"
+                  placeholder="Ej: Hola {{nombre}}"
+                />
+                <button type="button" onClick={() => removePart('saludos', i)} disabled={form.saludos.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40" title="Quitar">×</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => addPart('saludos')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro saludo</button>
+          </div>
+
+          {/* Cuerpos */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">Cuerpo</label>
+            {form.cuerpos.map((val, i) => (
+              <div key={`c-${i}`} className="flex gap-2 items-start">
+                <textarea
+                  value={val}
+                  onChange={(e) => updatePart('cuerpos', i, e.target.value)}
+                  onFocus={(e) => registerFocus('cuerpos', i, (v) => updatePart('cuerpos', i, v), e.target)}
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm min-h-[80px]"
+                  placeholder="Texto principal del mensaje..."
+                />
+                <button type="button" onClick={() => removePart('cuerpos', i)} disabled={form.cuerpos.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40 mt-1" title="Quitar">×</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => addPart('cuerpos')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro cuerpo</button>
+          </div>
+
+          {/* CTAs */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">CTA (llamado a la acción) <span className="font-normal text-slate-400">opcional</span></label>
+            {form.ctas.map((val, i) => (
+              <div key={`a-${i}`} className="flex gap-2 items-start">
+                <input
+                  value={val}
+                  onChange={(e) => updatePart('ctas', i, e.target.value)}
+                  onFocus={(e) => registerFocus('ctas', i, (v) => updatePart('ctas', i, v), e.target)}
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 text-sm"
+                  placeholder="Ej: Escríbenos al 3001234567"
+                />
+                <button type="button" onClick={() => removePart('ctas', i)} disabled={form.ctas.length <= 1} className="p-2 text-slate-400 hover:text-red-600 disabled:opacity-40" title="Quitar">×</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => addPart('ctas')} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar otro CTA</button>
+          </div>
+
+          {/* Preview en vivo */}
+          {hasContent() && (
+            <div className="p-4 bg-[#E7FEDD] border border-[#C5F0A4] rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">📱 Vista previa</p>
+                <button type="button" onClick={() => setPreviewSample(buildMessageFromTemplate(form, {}))} className="text-xs text-emerald-700 underline hover:no-underline font-medium">Ver otra combinación →</button>
+              </div>
+              <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                {previewSample != null ? previewSample : resolveMessage([form.saludos[0], form.cuerpos[0], form.ctas[0]].filter(Boolean).join('\n\n'), {})}
+              </p>
+              {(form.saludos.length > 1 || form.cuerpos.length > 1 || form.ctas.length > 1) && (
+                <p className="mt-2 text-xs text-emerald-600">✅ Variantes por bloque: el sistema elegirá una opción al azar en cada envío.</p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -428,11 +465,24 @@ export default function TemplatesPage() {
                   {t.name}
                   <MediaIcon type={t.mediaType} />
                 </td>
-                <td className="p-4 text-slate-600 text-sm truncate max-w-sm">{t.body}</td>
+                <td className="p-4 text-slate-600 text-sm truncate max-w-sm">
+                  {(() => {
+                    const saludos = Array.isArray(t.saludos) ? t.saludos : [];
+                    const cuerpos = Array.isArray(t.cuerpos) ? t.cuerpos : [];
+                    const ctas = Array.isArray(t.ctas) ? t.ctas : [];
+                    const hasParts = saludos.length > 0 || cuerpos.length > 0 || ctas.length > 0;
+                    if (hasParts) {
+                      const first = [saludos[0], cuerpos[0], ctas[0]].filter(Boolean).join(' · ');
+                      const n = saludos.length + cuerpos.length + ctas.length;
+                      return n > 3 ? `${(first || '').slice(0, 60)}… (${n} variantes)` : (first || '').slice(0, 80);
+                    }
+                    return (t.body || '').slice(0, 80);
+                  })()}
+                </td>
                 <td className="p-4 whitespace-nowrap">
                   <button
                     type="button"
-                    onClick={() => setPreviewTemplate(t)}
+                    onClick={() => { setPreviewTemplate(t); setPreviewModalSample(buildMessageFromTemplate(t, {})); }}
                     className="font-medium text-slate-600 hover:text-slate-800 mr-3 text-sm transition-colors"
                   >
                     Previsualizar
@@ -470,12 +520,12 @@ export default function TemplatesPage() {
                 ×
               </button>
             </div>
-            <p className="text-slate-600 border-t border-slate-100 pt-2">{previewTemplate.body || '—'}</p>
-            {previewTemplate.body && previewTemplate.body.includes('{') && (
-              <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100">
-                Ejemplo variaciones: {resolveSpintax(previewTemplate.body)}
-              </p>
-            )}
+            <p className="text-slate-600 border-t border-slate-100 pt-2 whitespace-pre-wrap">
+              {previewModalSample || '—'}
+            </p>
+            <button type="button" onClick={() => setPreviewModalSample(buildMessageFromTemplate(previewTemplate, {}))} className="mt-2 text-xs text-emerald-600 hover:underline">
+              Ver otra combinación
+            </button>
           </div>
         </div>
       )}

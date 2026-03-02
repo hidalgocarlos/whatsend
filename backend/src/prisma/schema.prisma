@@ -36,6 +36,9 @@ model Template {
   name       String
   body       String
   variables  String     // JSON array: ["nombre","empresa"]
+  saludos    String     @default("[]")  // JSON array of strings: ["Hola", "Buenos días"]
+  cuerpos    String     @default("[]")   // JSON array of strings
+  ctas       String     @default("[]")  // JSON array of strings
   mediaType  String?    // "image" | "audio" | null
   mediaPath  String?    // ruta relativa en disco: uploads/templates/xxx.jpg
   mediaName  String?    // nombre original del archivo subido

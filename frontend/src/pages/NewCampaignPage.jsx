@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
-import { resolveMessage } from '../lib/templateUtils.js';
+import { buildMessageFromTemplate } from '../lib/templateUtils.js';
 import { tagChipClass, tagColor } from '../lib/tagColors.js';
 
 const AVG_DELAY_S = 45;
@@ -89,15 +89,20 @@ export default function NewCampaignPage() {
           ? JSON.parse(first.variables || '{}')
           : first.variables || {};
         const totalSeconds = (filteredItems.length - 1) * AVG_DELAY_S;
+        const saludos = Array.isArray(t.saludos) ? t.saludos : [];
+        const cuerpos = Array.isArray(t.cuerpos) ? t.cuerpos : [];
+        const ctas = Array.isArray(t.ctas) ? t.ctas : [];
+        const hasVariants = (saludos.length || 0) + (cuerpos.length || 0) + (ctas.length || 0) > 3;
+        const hasSpintaxInBody = t.body?.includes('{') && t.body?.includes('|');
         setPreview({
-          samples: [{ phone: first.phone, body: resolveMessage(t.body, firstVars) }],
+          samples: [{ phone: first.phone, body: buildMessageFromTemplate(t, firstVars) }],
           total: filteredItems.length,
           mediaType: t.mediaType || null,
           mediaName: t.mediaName || null,
           estimatedSeconds: totalSeconds,
-          hasSpintax: t.body?.includes('{') && t.body?.includes('|'),
+          hasSpintax: hasSpintaxInBody || hasVariants,
         });
-  }, [templateId, contactListId, filteredItems.length, templates]);
+  }, [templateId, contactListId, filteredItems, templates]);
 
   function toggleTag(tag) {
     setSelectedTags(prev =>

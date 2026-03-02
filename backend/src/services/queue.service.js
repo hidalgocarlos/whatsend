@@ -2,8 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { readFile } from 'fs/promises';
 import { getRedis } from '../lib/redis.js';
 import { getClient } from './whatsappPool.service.js';
-import { resolveTemplate } from './template.service.js';
-import { resolveSpintax } from '../lib/spintax.js';
+import { buildMessageFromParts } from './template.service.js';
 import { prisma } from '../lib/prisma.js';
 import * as sendLogService from './sendLog.service.js';
 import * as usageService from './usage.service.js';
@@ -51,9 +50,8 @@ export async function enqueueCampaign(campaignId, userId, recipients, template, 
     try {
       vars = typeof rec.variables === 'string' ? JSON.parse(rec.variables) : rec.variables || {};
     } catch (_) {}
-    // Primero resuelve variables {{nombre}}, luego aplica spintax {a|b|c}
-    // Cada destinatario recibe una variación aleatoria diferente
-    const messageBody = resolveSpintax(resolveTemplate(template.body, vars));
+    // Construye mensaje desde saludo+cuerpo+cta (o body legacy) y aplica variables + spintax
+    const messageBody = buildMessageFromParts(template, vars);
     jobs.push({
       name: 'send-message',
       data: {

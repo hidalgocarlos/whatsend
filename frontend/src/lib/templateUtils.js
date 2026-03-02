@@ -27,3 +27,39 @@ export function resolveSpintax(text) {
 export function resolveMessage(body, variables = {}) {
   return resolveSpintax(resolveTemplate(body, variables));
 }
+
+function parseParts(val) {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try { return JSON.parse(val || '[]'); } catch (_) { return []; }
+  }
+  return [];
+}
+
+function pickRandom(arr) {
+  if (!arr?.length) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Construye el mensaje desde plantilla con 3 bloques (Saludo, Cuerpo, CTA) o body legacy.
+ * Si hay al menos un elemento en saludos/cuerpos/ctas, elige uno al azar de cada bloque,
+ * concatena con doble salto de línea y aplica variables + spintax.
+ */
+export function buildMessageFromTemplate(template, variables = {}) {
+  const saludos = parseParts(template?.saludos);
+  const cuerpos = parseParts(template?.cuerpos);
+  const ctas = parseParts(template?.ctas);
+  const hasParts = saludos.length > 0 || cuerpos.length > 0 || ctas.length > 0;
+
+  if (hasParts) {
+    const parts = [
+      pickRandom(saludos),
+      pickRandom(cuerpos),
+      pickRandom(ctas),
+    ].filter(Boolean);
+    const raw = parts.join('\n\n');
+    return resolveMessage(raw, variables);
+  }
+  return resolveMessage(template?.body ?? '', variables);
+}
