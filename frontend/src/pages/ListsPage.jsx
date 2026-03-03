@@ -81,112 +81,130 @@ function TagEditor({ listId, item, onUpdated }) {
   );
 }
 
-// ---------- Formulario de agregar contacto manual ----------
-const EMPTY_FIELDS = [{ key: '', value: '' }, { key: '', value: '' }, { key: '', value: '' }];
+// ---------- Formulario agregar 1 a 3 contactos (nombre, teléfono, correo; solo teléfono obligatorio) ----------
+const EMPTY_ROW = { name: '', phone: '', email: '' };
 
 function AddContactForm({ listId, onAdded }) {
-  const [phone, setPhone]   = useState('');
-  const [tags, setTags]     = useState('');
-  const [fields, setFields] = useState(EMPTY_FIELDS); // máx 3 campos
+  const [rows, setRows] = useState([{ ...EMPTY_ROW }]); // 1 a 3 filas
+  const [tags, setTags] = useState('');
   const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState('');
+  const [err, setErr] = useState('');
 
-  function setField(idx, prop, val) {
-    setFields(prev => prev.map((f, i) => i === idx ? { ...f, [prop]: val } : f));
+  function setRow(idx, field, value) {
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+
+  function addRow() {
+    if (rows.length >= 3) return;
+    setRows(prev => [...prev, { ...EMPTY_ROW }]);
+  }
+
+  function removeRow(idx) {
+    if (rows.length <= 1) return;
+    setRows(prev => prev.filter((_, i) => i !== idx));
   }
 
   async function submit(e) {
     e.preventDefault();
     setErr('');
+    const tagArr = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    const toAdd = rows
+      .map(r => ({ name: r.name.trim(), phone: r.phone.trim(), email: r.email.trim() }))
+      .filter(r => r.phone);
+    if (!toAdd.length) {
+      setErr('Indica al menos un teléfono.');
+      return;
+    }
+    if (toAdd.length > 3) {
+      setErr('Máximo 3 contactos por envío.');
+      return;
+    }
     setSaving(true);
     try {
-      const tagArr = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-      // Solo incluir campos que tengan clave Y valor
-      const variables = {};
-      fields.forEach(({ key, value }) => {
-        const k = key.trim().toLowerCase().replace(/\s+/g, '_');
-        if (k && value.trim()) variables[k] = value.trim();
-      });
-      const { data } = await api.post(`/api/lists/${listId}/items`, {
-        phone: phone.trim(),
-        variables,
-        tags: tagArr,
-      });
-      onAdded(data);
-      setPhone('');
+      for (const contact of toAdd) {
+        const { data } = await api.post(`/api/lists/${listId}/items`, {
+          phone: contact.phone,
+          name: contact.name || undefined,
+          email: contact.email || undefined,
+          tags: tagArr,
+        });
+        onAdded(data);
+      }
+      setRows([{ ...EMPTY_ROW }]);
       setTags('');
-      setFields(EMPTY_FIELDS);
     } catch (error) {
-      setErr(error.response?.data?.error || error.message || 'Error al agregar contacto');
+      setErr(error.response?.data?.error || error.message || 'Error al agregar contacto(s)');
     } finally {
       setSaving(false);
     }
   }
 
+  const hasAnyPhone = rows.some(r => r.phone.trim());
+
   return (
-    <form onSubmit={submit} className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
-      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Agregar contacto</p>
-
-      {/* Teléfono */}
-      <div>
-        <label className="block text-xs text-slate-500 mb-1">Teléfono *</label>
-        <input
-          value={phone}
-          onChange={e => setPhone(e.target.value)}
-          placeholder="+573001234567"
-          required
-          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 bg-white"
-        />
+    <form onSubmit={submit} className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Agregar contactos</p>
+        <span className="text-xs text-slate-400">Máx. 3 a la vez · solo teléfono obligatorio</span>
       </div>
 
-      {/* Hasta 3 campos personalizados */}
-      <div>
-        <label className="block text-xs text-slate-500 mb-1.5">
-          Datos del contacto <span className="text-slate-400 font-normal">(máx. 3 — para más usa CSV)</span>
-        </label>
-        <div className="space-y-1.5">
-          {fields.map((f, i) => (
-            <div key={i} className="flex gap-1.5">
-              <input
-                value={f.key}
-                onChange={e => setField(i, 'key', e.target.value)}
-                placeholder={['nombre', 'empresa', 'ciudad'][i]}
-                className="w-28 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-400 bg-white text-slate-600 placeholder-slate-300"
-              />
-              <span className="text-slate-300 self-center text-sm">→</span>
-              <input
-                value={f.value}
-                onChange={e => setField(i, 'value', e.target.value)}
-                placeholder={['Ej: María', 'Ej: Acme S.A.', 'Ej: Bogotá'][i]}
-                className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-400 bg-white text-slate-700 placeholder-slate-300"
-              />
-            </div>
-          ))}
+      {rows.map((row, idx) => (
+        <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+          <div className="sm:col-span-3">
+            <label className="block text-xs text-slate-500 mb-1">Nombre</label>
+            <input
+              value={row.name}
+              onChange={e => setRow(idx, 'name', e.target.value)}
+              placeholder="Opcional"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 bg-white"
+            />
+          </div>
+          <div className="sm:col-span-4">
+            <label className="block text-xs text-slate-500 mb-1">Teléfono *</label>
+            <input
+              value={row.phone}
+              onChange={e => setRow(idx, 'phone', e.target.value)}
+              placeholder="+573001234567"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 bg-white"
+            />
+          </div>
+          <div className="sm:col-span-4">
+            <label className="block text-xs text-slate-500 mb-1">Correo</label>
+            <input
+              type="email"
+              value={row.email}
+              onChange={e => setRow(idx, 'email', e.target.value)}
+              placeholder="Opcional"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 bg-white"
+            />
+          </div>
+          <div className="sm:col-span-1 flex gap-1 justify-end">
+            {rows.length > 1 && (
+              <button type="button" onClick={() => removeRow(idx)} className="p-2 text-slate-400 hover:text-red-600 rounded-lg" title="Quitar fila">−</button>
+            )}
+            {idx === rows.length - 1 && rows.length < 3 && (
+              <button type="button" onClick={addRow} className="p-2 text-slate-400 hover:text-[#25D366] rounded-lg" title="Añadir otra fila">+</button>
+            )}
+          </div>
         </div>
-        <p className="mt-1 text-xs text-slate-400">
-          El nombre del campo debe coincidir con el usado en la plantilla. Ej: si la plantilla dice <code className="bg-slate-100 px-1 rounded">{'{{nombre}}'}</code>, escribe <strong>nombre</strong> como campo.
-        </p>
-      </div>
+      ))}
 
-      {/* Tags */}
       <div>
-        <label className="block text-xs text-slate-500 mb-1">
-          Tags <span className="text-slate-400 font-normal">(separados por coma)</span>
-        </label>
+        <label className="block text-xs text-slate-500 mb-1">Tags <span className="text-slate-400">(opcional, separados por coma)</span></label>
         <input
           value={tags}
           onChange={e => setTags(e.target.value)}
-          placeholder="cliente, vip, bogota"
+          placeholder="cliente, vip, origen-web"
           className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500/25 focus:border-green-500 bg-white"
         />
       </div>
 
       <button
         type="submit"
-        disabled={saving || !phone.trim()}
+        disabled={saving || !hasAnyPhone}
         className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all duration-200 shadow-card"
       >
-        {saving ? 'Agregando…' : '+ Agregar contacto'}
+        {saving ? 'Agregando…' : `+ Agregar ${rows.filter(r => r.phone.trim()).length || 1} contacto(s)`}
       </button>
 
       {err && <p className="text-xs text-red-600 font-medium">{err}</p>}
@@ -201,7 +219,7 @@ function countContactsWithTag(items, tag) {
   }).length;
 }
 
-// ---------- Panel de gestión de tags ----------
+// ---------- Menú completo de tags: ver, filtrar, renombrar, eliminar ----------
 function ManageTagsPanel({ listId, items, allTags, filterTag, setFilterTag, onTagsChanged }) {
   const [renaming, setRenaming]   = useState(null);  // { oldTag, newName }
   const [deleting, setDeleting]  = useState(null);
@@ -242,89 +260,105 @@ function ManageTagsPanel({ listId, items, allTags, filterTag, setFilterTag, onTa
     }
   }
 
-  if (allTags.length === 0) return null;
-
   return (
-    <div className="px-6 py-4 border-b border-slate-100 bg-emerald-50/40">
-      <div className="mb-3">
-        <p className="text-sm font-bold text-slate-800">Etiquetas (tags)</p>
-        <p className="text-xs text-slate-500">Elige un grupo para ver, cambiar nombre o borrar.</p>
+    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+      <div className="mb-4">
+        <h3 className="text-sm font-bold text-slate-800">Gestión de tags</h3>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Agrupa e identifica contactos por origen o tipo. Asigna tags al agregar contactos o en cada fila debajo.
+        </p>
+        {allTags.length > 0 && (
+          <p className="text-xs text-slate-500 mt-1">
+            <strong>{allTags.length}</strong> tag{allTags.length !== 1 ? 's' : ''} en esta lista
+          </p>
+        )}
       </div>
 
-      {/* Renombrar inline */}
+      {/* Renombrar tag */}
       {renaming && (
-        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center gap-2">
-          <span className="text-sm text-amber-800">Nuevo nombre para <strong>{renaming.oldTag}</strong>:</span>
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center gap-3">
+          <span className="text-sm text-amber-800">Renombrar <strong>{renaming.oldTag}</strong> a:</span>
           <input
             autoFocus
             value={renaming.newName}
             onChange={e => setRenaming(r => ({ ...r, newName: e.target.value }))}
             onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setRenaming(null); }}
-            placeholder="escribe aqui"
-            className="flex-1 min-w-[100px] px-2.5 py-1.5 text-sm border border-amber-200 rounded-lg"
+            placeholder="nuevo nombre"
+            className="flex-1 min-w-[120px] px-3 py-2 text-sm border border-amber-200 rounded-lg bg-white"
           />
-          <button type="button" onClick={handleRename} disabled={busy} className="px-3 py-1.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 disabled:opacity-50">Guardar</button>
-          <button type="button" onClick={() => setRenaming(null)} className="text-slate-500 text-sm">Cancelar</button>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleRename} disabled={busy} className="px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 disabled:opacity-50">Guardar</button>
+            <button type="button" onClick={() => setRenaming(null)} className="px-3 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50">Cancelar</button>
+          </div>
         </div>
       )}
 
-      {/* Confirmar eliminar */}
+      {/* Confirmar eliminar tag */}
       {deleting && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl flex flex-wrap items-center gap-2">
-          <span className="text-sm text-red-800">¿Quitar el tag <strong>{deleting}</strong> de todos los contactos?</span>
-          <button type="button" onClick={handleDelete} disabled={busy} className="px-3 py-1.5 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 disabled:opacity-50">Sí, quitar</button>
-          <button type="button" onClick={() => setDeleting(null)} className="text-slate-600 text-sm">Cancelar</button>
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex flex-wrap items-center gap-3">
+          <span className="text-sm text-red-800">¿Quitar el tag <strong>{deleting}</strong> de todos los contactos que lo tengan?</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleDelete} disabled={busy} className="px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 disabled:opacity-50">Sí, quitar</button>
+            <button type="button" onClick={() => setDeleting(null)} className="px-3 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50">Cancelar</button>
+          </div>
         </div>
       )}
 
-      {error && <p className="mb-2 text-xs text-red-600 font-medium">{error}</p>}
+      {error && <p className="mb-3 text-xs text-red-600 font-medium" role="alert">{error}</p>}
 
-      <div className="space-y-2">
-        {allTags.map(tag => {
-          const count = countContactsWithTag(items, tag);
-          const active = filterTag === tag;
-          return (
-            <div
-              key={tag}
-              className={`flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl border transition-colors ${
-                active ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className={`shrink-0 ${tagChipClass(tag)}`}>{tag}</span>
-                <span className="text-xs text-slate-500">{count} contacto{count !== 1 ? 's' : ''}</span>
+      {allTags.length === 0 ? (
+        <div className="py-6 px-4 rounded-xl border border-dashed border-slate-200 bg-white text-center">
+          <p className="text-sm text-slate-500">Aún no hay tags en esta lista.</p>
+          <p className="text-xs text-slate-400 mt-1">Asigna tags al agregar contactos (campo Tags) o hazlo en cada contacto más abajo.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {allTags.map(tag => {
+            const count = countContactsWithTag(items, tag);
+            const active = filterTag === tag;
+            return (
+              <div
+                key={tag}
+                className={`flex flex-wrap items-center justify-between gap-3 py-3 px-4 rounded-xl border transition-colors ${
+                  active ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200' : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`shrink-0 ${tagChipClass(tag)}`}>{tag}</span>
+                  <span className="text-xs text-slate-500">{count} contacto{count !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setFilterTag(active ? '' : tag)}
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold ${
+                      active
+                        ? 'text-slate-700 bg-slate-200 hover:bg-slate-300'
+                        : 'text-[#25D366] bg-emerald-100 hover:bg-emerald-200 border border-emerald-200'
+                    }`}
+                  >
+                    {active ? 'Ver todos' : 'Ver contactos'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRenaming({ oldTag: tag, newName: tag })}
+                    className="text-xs px-3 py-1.5 text-slate-700 bg-slate-100 font-semibold hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors"
+                  >
+                    Renombrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(tag)}
+                    className="text-xs px-3 py-1.5 text-red-700 bg-red-50 font-semibold hover:bg-red-100 rounded-lg border border-red-100 transition-colors"
+                  >
+                    Eliminar tag
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setFilterTag(active ? '' : tag)}
-                  className={`text-xs px-2.5 py-1 rounded-lg transition-colors font-semibold ${
-                    active
-                      ? 'text-slate-700 bg-slate-100 hover:bg-slate-200'
-                      : 'text-[#25D366] bg-emerald-50 hover:bg-emerald-100'
-                  }`}
-                >
-                  {active ? 'Ver todos' : 'Ver solo este'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenaming({ oldTag: tag, newName: tag })}
-                  className="text-xs px-2.5 py-1 text-slate-700 bg-slate-100 font-semibold hover:bg-slate-200 rounded-lg transition-colors"
-                >
-                  Cambiar nombre
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleting(tag)}
-                  className="text-xs px-2.5 py-1 text-red-700 bg-red-50 font-semibold hover:bg-red-100 rounded-lg transition-colors"
-                >
-                  Borrar
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -442,22 +476,35 @@ function ContactsPanel({ listId, listName, onClose }) {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {visible.map(item => (
-                <div key={item.id} className="px-6 py-3 hover:bg-slate-50/50 transition-colors group">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm font-mono text-slate-700">{item.phone}</p>
-                    <button
-                      type="button"
-                      onClick={() => deleteContact(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700 transition-all"
-                      title="Eliminar contacto"
-                    >
-                      Eliminar
-                    </button>
+              {visible.map(item => {
+                let vars = {};
+                try { vars = typeof item.variables === 'string' ? JSON.parse(item.variables || '{}') : (item.variables || {}); } catch (_) {}
+                const nombre = vars.nombre || vars.name || '';
+                const correo = vars.correo || vars.email || '';
+                return (
+                  <div key={item.id} className="px-6 py-3 hover:bg-slate-50/50 transition-colors group">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-mono text-slate-700">{item.phone}</p>
+                        {(nombre || correo) && (
+                          <p className="text-xs text-slate-500 mt-0.5 truncate">
+                            {nombre}{nombre && correo ? ' · ' : ''}{correo}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteContact(item.id)}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700 transition-all shrink-0"
+                        title="Eliminar contacto"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                    <TagEditor listId={listId} item={item} onUpdated={onTagUpdated} />
                   </div>
-                  <TagEditor listId={listId} item={item} onUpdated={onTagUpdated} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -266,7 +266,7 @@ export async function addItem(req, res) {
       return res.status(400).json({ error: `Máximo ${MAX_ITEMS} contactos por lista` });
     }
 
-    const { phone, variables = {}, tags = [] } = req.body;
+    const { phone, name, email, variables = {}, tags = [] } = req.body;
     if (!phone || typeof phone !== 'string') {
       return res.status(400).json({ error: 'Teléfono requerido' });
     }
@@ -279,6 +279,10 @@ export async function addItem(req, res) {
       return res.status(400).json({ error: 'Número de teléfono inválido (ej: +573001234567)' });
     }
 
+    const baseVars = typeof variables === 'string' ? (() => { try { return JSON.parse(variables); } catch (_) { return {}; } })() : { ...variables };
+    if (name != null && String(name).trim()) baseVars.nombre = String(name).trim();
+    if (email != null && String(email).trim()) baseVars.correo = String(email).trim();
+
     const cleanedTags = Array.isArray(tags)
       ? tags.map(t => String(t).trim().toLowerCase()).filter(Boolean)
       : [];
@@ -287,7 +291,7 @@ export async function addItem(req, res) {
       data: {
         contactListId: listId,
         phone: normalized,
-        variables: JSON.stringify(typeof variables === 'string' ? JSON.parse(variables) : variables),
+        variables: JSON.stringify(baseVars),
         tags: JSON.stringify(cleanedTags),
       },
     });
